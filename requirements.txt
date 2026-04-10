@@ -1,0 +1,10 @@
+# 核心依赖
+pandas>=1.5.0
+openpyxl>=3.0.0
+
+# 可选依赖（安装失败不影响核心功能）
+ttkbootstrap>=1.10.0    # 现代UI，无此库则使用原生tkinter
+tkinterdnd2>=0.3.0      # 拖拽支持
+
+# 打包工具
+pyinstaller>=6.0.0
