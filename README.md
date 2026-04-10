@@ -112,21 +112,17 @@ F:\工作文档\2025年8月\8月进项
 
 ## 下载方式
 
-发布到 GitHub 后，建议把编译好的 Windows 可执行文件放到仓库的 `Releases` 页面，而不是直接提交到源码仓库。
-
-推荐下载入口：
+下载入口：
 
 - GitHub 仓库主页的 `Releases`
 - 最新版本的发布页
-- 附件名称建议统一为：`发票处理工具箱v5.1.exe`
 
-如果你是从源码运行，可以直接看下面的“开发与运行”。
 
 ## 快速开始
 
 ### 方式一：直接使用 EXE
 
-1. 从 GitHub `Releases` 页面下载 `发票处理工具箱v5.1.exe`
+1. 从 GitHub `Releases` 页面下载 `invoice-pdf-tool-v5.1-windows-x64.exe`
 2. 双击打开
 3. 进入“发票筛选”页
 4. 选择 Excel 文件和 PDF 文件夹
@@ -341,10 +337,6 @@ fapiao_v5/
 
 我打算长期维护这个项目（未知），可能继续补这些内容：
 
-- `LICENSE`
-- `CHANGELOG.md`
-- GitHub Releases
-- 截图或演示 GIF
-- Issues 模板
-- `.github/release.yml`
+- 发票金额汇总
+- 验证重复发票
 
