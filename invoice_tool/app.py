@@ -5,7 +5,7 @@ import tkinter as tk
 from typing import List, Optional
 
 from .runtime import DND_SUPPORT, MODERN_UI, TkinterDnD, ttkb
-from .ui.app import InvoiceToolApp
+from .ui import InvoiceToolApp
 
 
 def run_gui() -> None:

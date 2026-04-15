@@ -329,8 +329,8 @@ def _filter_command(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="发票处理工具v5.1",
-        description="发票工具 v5.1：支持 GUI 与命令行批处理。",
+        prog="发票处理工具v5.2.0",
+        description="发票工具 v5.2.0：支持 GUI 与命令行批处理。",
     )
     subparsers = parser.add_subparsers(dest="command")
 

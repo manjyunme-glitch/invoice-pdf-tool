@@ -1,72 +1,85 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 chcp 65001 >nul
 cd /d "%~dp0"
 
+set "ENTRY_SCRIPT="
+for %%F in (*v5.py) do (
+    set "ENTRY_SCRIPT=%%~fF"
+)
+
+if not defined ENTRY_SCRIPT (
+    echo [ERROR] Cannot find the GUI entry script.
+    pause
+    exit /b 1
+)
+
+set "OUTPUT_NAME=invoice-pdf-tool-v5.2.0"
+
 echo ========================================
-echo   发票处理工具箱 v5.1 - 一键打包
+echo   Invoice PDF Tool v5.2.0 - Build EXE
 echo ========================================
 echo.
 
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [错误] 未检测到 Python，请先安装 Python 3.10+
+    echo [ERROR] Python 3.10+ is required.
     pause
     exit /b 1
 )
 
-echo [1/5] 安装依赖...
+echo [1/5] Install dependencies...
 python -m pip install -r requirements.txt --quiet
 if errorlevel 1 (
-    echo [警告] 依赖安装存在异常，将继续尝试打包
+    echo [WARN] Dependency install reported issues. Continue building...
 )
 
 echo.
-echo [2/5] 清理旧产物...
+echo [2/5] Clean previous outputs...
 if exist "dist" rmdir /s /q "dist"
 if exist "build" rmdir /s /q "build"
 del /q "*.spec" 2>nul
 for /d /r %%D in (__pycache__) do @if exist "%%D" rmdir /s /q "%%D"
 
 echo.
-echo [3/5] 打包 GUI EXE...
+echo [3/5] Build GUI EXE...
 python -m PyInstaller ^
     --onefile ^
     --windowed ^
-    --name "发票处理工具箱v5.1" ^
+    --name "%OUTPUT_NAME%" ^
     --noconfirm ^
     --clean ^
     --hidden-import=pandas ^
     --hidden-import=openpyxl ^
     --hidden-import=openpyxl.cell._writer ^
     --collect-all openpyxl ^
-    "发票处理工具v5.py"
+    "%ENTRY_SCRIPT%"
 if errorlevel 1 (
     echo.
-    echo [错误] 打包失败，请检查上方日志
+    echo [ERROR] Build failed. Please review the logs above.
     pause
     exit /b 1
 )
 
-if not exist "dist\发票处理工具箱v5.1.exe" (
+if not exist "dist\%OUTPUT_NAME%.exe" (
     echo.
-    echo [错误] 未找到打包产物 dist\发票处理工具箱v5.1.exe
+    echo [ERROR] Missing output file: dist\%OUTPUT_NAME%.exe
     pause
     exit /b 1
 )
 
 echo.
-echo [4/5] 清理中间文件...
+echo [4/5] Clean intermediate files...
 if exist "build" rmdir /s /q "build"
 del /q "*.spec" 2>nul
 for /d /r %%D in (__pycache__) do @if exist "%%D" rmdir /s /q "%%D"
 
 echo.
-echo [5/5] 打包完成
+echo [5/5] Build completed
 echo.
 echo ========================================
-echo   成功生成：
-echo   dist\发票处理工具箱v5.1.exe
+echo   Output:
+echo   dist\%OUTPUT_NAME%.exe
 echo ========================================
 echo.
 
