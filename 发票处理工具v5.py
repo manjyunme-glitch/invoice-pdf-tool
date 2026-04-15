@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""v5.2.0 GUI 入口：独立于旧版本项目的当前启动文件。"""
+"""v5.2.1 GUI 入口：独立于旧版本项目的当前启动文件。"""
 
 from tkinter import messagebox
 

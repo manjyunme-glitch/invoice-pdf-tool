@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-发票处理工具箱 v5.2.0
+发票处理工具箱 v5.2.1
 
 当前版本聚焦于：
 - 发票整理
@@ -43,7 +43,7 @@ HISTORY_DATE_OPTIONS = ("全部", "最近7天", "最近30天")
 FILTER_RULE_MODE_OPTIONS = ("不过滤", "等于任一", "包含任一", "不等于任一", "不包含任一")
 UI_THEME_OPTIONS = ("day", "night")
 UI_THEME_LABELS = {"day": "白天", "night": "黑夜"}
-APP_VERSION = "v5.2.0"
+APP_VERSION = "v5.2.1"
 APP_TITLE = f"发票处理工具箱 {APP_VERSION}"
 
 UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
@@ -266,7 +266,7 @@ def filter_history_records(
 # ==================== GUI 主应用 ====================
 
 class InvoiceToolApp:
-    """发票处理工具箱 v5.2.0"""
+    """发票处理工具箱 v5.2.1"""
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root

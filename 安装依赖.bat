@@ -9,7 +9,7 @@ for %%F in (*v5.py) do (
 )
 
 echo ========================================
-echo   Invoice PDF Tool v5.2.0 - Install deps
+echo   Invoice PDF Tool v5.2.1 - Install deps
 echo ========================================
 echo.
 

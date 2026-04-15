@@ -14,10 +14,10 @@ if not defined ENTRY_SCRIPT (
     exit /b 1
 )
 
-set "OUTPUT_NAME=invoice-pdf-tool-v5.2.0"
+set "OUTPUT_NAME=invoice-pdf-tool-v5.2.1"
 
 echo ========================================
-echo   Invoice PDF Tool v5.2.0 - Build EXE
+echo   Invoice PDF Tool v5.2.1 - Build EXE
 echo ========================================
 echo.
 

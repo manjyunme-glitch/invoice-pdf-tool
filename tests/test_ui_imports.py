@@ -17,7 +17,7 @@ class UiImportTests(unittest.TestCase):
         self.assertIsNotNone(ui_app_module.logging.Formatter)
 
     def test_public_ui_app_points_to_visual_refresh_class(self):
-        self.assertTrue(PublicInvoiceToolApp.__module__.endswith("v520_app"))
+        self.assertTrue(PublicInvoiceToolApp.__module__.endswith("v521_app"))
 
 
 if __name__ == "__main__":
