@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from invoice_tool.ui import InvoiceToolApp
+from invoice_tool.ui.app import UI_THEME_PRESETS
 
 
 class UiLayoutTests(unittest.TestCase):
@@ -59,6 +60,30 @@ class UiLayoutTests(unittest.TestCase):
             self.assertLess(notebook_top, 210)
         finally:
             app._on_closing()
+
+    def test_workbook_analysis_details_are_collapsed_by_default(self):
+        root = tk.Tk()
+        root.withdraw()
+        app = InvoiceToolApp(root)
+        try:
+            self.assertFalse(app.workbook_analysis_expanded.get())
+            self.assertEqual(app.workbook_analysis_content.winfo_manager(), "")
+        finally:
+            app._on_closing()
+
+    def test_status_colors_are_theme_specific(self):
+        status_keys = [
+            "status_success",
+            "status_missing",
+            "status_skip",
+            "status_error",
+            "status_conflict",
+            "status_preview",
+        ]
+        for key in status_keys:
+            self.assertIn(key, UI_THEME_PRESETS["day"])
+            self.assertIn(key, UI_THEME_PRESETS["night"])
+            self.assertNotEqual(UI_THEME_PRESETS["day"][key], UI_THEME_PRESETS["night"][key])
 
 
 if __name__ == "__main__":

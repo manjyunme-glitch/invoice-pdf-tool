@@ -9,7 +9,7 @@ from .v520_app import InvoiceToolApp as V520InvoiceToolApp
 
 
 class InvoiceToolApp(V520InvoiceToolApp):
-    """v5.2.1 compact workspace refresh."""
+    """v5.2.2 compact workspace refresh."""
 
     def _create_compact_chip(self, parent: tk.Widget, text: str, *, accent: bool = False) -> None:
         bg = self.palette["hero_chip_bg"] if not accent else self.palette["primary"]
@@ -23,6 +23,35 @@ class InvoiceToolApp(V520InvoiceToolApp):
             padx=8,
             pady=3,
         ).pack(side="left", padx=(0, 6))
+
+    def _create_filter_metric_card(self, parent: tk.Widget, metric_key: str, bg: str, fg: str) -> None:
+        card = tk.Frame(
+            parent,
+            bg=self.palette["surface_raised"],
+            highlightbackground=self.palette["border"],
+            highlightcolor=self.palette["border"],
+            highlightthickness=1,
+            padx=8,
+            pady=6,
+        )
+        card.pack(side="left", fill="x", expand=True, padx=3)
+
+        tk.Label(
+            card,
+            textvariable=self.filter_metric_labels[metric_key],
+            font=("微软雅黑", 8),
+            bg=self.palette["surface_raised"],
+            fg=self.palette["muted"],
+            anchor="w",
+        ).pack(anchor="w")
+        tk.Label(
+            card,
+            textvariable=self.filter_metric_values[metric_key],
+            font=("微软雅黑", 13, "bold"),
+            bg=self.palette["surface_raised"],
+            fg=fg,
+            anchor="w",
+        ).pack(anchor="w", pady=(2, 0))
 
     def _build_ui(self) -> None:
         palette = self.palette

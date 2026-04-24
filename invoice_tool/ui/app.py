@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-发票处理工具箱 v5.2.1
+发票处理工具箱 v5.2.2
 
 当前版本聚焦于：
 - 发票整理
 - 多 Sheet 发票筛选
 - 条件筛选与公司排除
 - 白天 / 黑夜双主题
+- 更紧凑的筛选页首屏体验
 - 更稳定的 GUI 打包交付
 """
 
@@ -43,7 +44,7 @@ HISTORY_DATE_OPTIONS = ("全部", "最近7天", "最近30天")
 FILTER_RULE_MODE_OPTIONS = ("不过滤", "等于任一", "包含任一", "不等于任一", "不包含任一")
 UI_THEME_OPTIONS = ("day", "night")
 UI_THEME_LABELS = {"day": "白天", "night": "黑夜"}
-APP_VERSION = "v5.2.1"
+APP_VERSION = "v5.2.2"
 APP_TITLE = f"发票处理工具箱 {APP_VERSION}"
 
 UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
@@ -99,6 +100,12 @@ UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
         "tab_idle_fg": "#64748B",
         "detail_bg": "#F7FAFD",
         "detail_fg": "#41566B",
+        "status_success": "#166534",
+        "status_missing": "#B91C1C",
+        "status_skip": "#9A3412",
+        "status_error": "#AD1457",
+        "status_conflict": "#6B21A8",
+        "status_preview": "#0C4A6E",
         "card_palette": [
             ("#DCFCE7", "#166534"),
             ("#DCF4F3", "#0F766E"),
@@ -160,6 +167,12 @@ UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
         "tab_idle_fg": "#94A3B8",
         "detail_bg": "#122033",
         "detail_fg": "#D3DEEA",
+        "status_success": "#86EFAC",
+        "status_missing": "#FCA5A5",
+        "status_skip": "#FDBA74",
+        "status_error": "#F9A8D4",
+        "status_conflict": "#C4B5FD",
+        "status_preview": "#93C5FD",
         "card_palette": [
             ("#163A2B", "#DDFBEA"),
             ("#133A56", "#D9F1FF"),
@@ -266,7 +279,7 @@ def filter_history_records(
 # ==================== GUI 主应用 ====================
 
 class InvoiceToolApp:
-    """发票处理工具箱 v5.2.1"""
+    """发票处理工具箱 v5.2.2"""
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -345,8 +358,10 @@ class InvoiceToolApp:
             "metric6": tk.StringVar(value="0"),
         }
         self.workbook_analysis_summary_var = tk.StringVar(value="打开 Excel 后，会自动分析每个工作表的发票列和公司列候选。")
+        self.workbook_analysis_compact_var = tk.StringVar(value="列映射、行筛选和样本预览默认收起，需要调整时展开。")
         self.workbook_sheet_overview_var = tk.StringVar(value="先选择 Excel 文件，再从左侧查看每个 sheet 的识别结果。")
         self.workbook_sheet_sample_var = tk.StringVar(value="样本预览会显示当前工作表前几行数据，便于确认列是否正确。")
+        self.workbook_analysis_expanded = tk.BooleanVar(value=False)
         self.workbook_analysis_result: Optional[WorkbookAnalysisResult] = None
         self.workbook_profiles: Dict[str, WorkbookSheetProfile] = {}
         self.workbook_tree_selection: Dict[str, str] = {}
@@ -1388,12 +1403,12 @@ class InvoiceToolApp:
 
         self.filter_result_tree.tag_configure("evenrow", background=self.palette["tree_even"])
         self.filter_result_tree.tag_configure("oddrow", background=self.palette["tree_odd"])
-        self.filter_result_tree.tag_configure("success", foreground="#1B5E20")
-        self.filter_result_tree.tag_configure("missing", foreground="#C62828")
-        self.filter_result_tree.tag_configure("skip", foreground="#EF6C00")
-        self.filter_result_tree.tag_configure("error", foreground="#AD1457")
-        self.filter_result_tree.tag_configure("conflict", foreground="#6A1B9A")
-        self.filter_result_tree.tag_configure("preview", foreground="#1565C0")
+        self.filter_result_tree.tag_configure("success", foreground=self.palette["status_success"])
+        self.filter_result_tree.tag_configure("missing", foreground=self.palette["status_missing"])
+        self.filter_result_tree.tag_configure("skip", foreground=self.palette["status_skip"])
+        self.filter_result_tree.tag_configure("error", foreground=self.palette["status_error"])
+        self.filter_result_tree.tag_configure("conflict", foreground=self.palette["status_conflict"])
+        self.filter_result_tree.tag_configure("preview", foreground=self.palette["status_preview"])
         self.filter_result_tree.bind("<<TreeviewSelect>>", self._on_filter_result_select)
         self.filter_result_tree.bind("<Double-1>", self._open_selected_filter_result)
 
@@ -1423,7 +1438,7 @@ class InvoiceToolApp:
         analysis_lf.pack(fill="x", pady=(8, 0))
 
         top_row = tk.Frame(analysis_lf)
-        top_row.pack(fill="x", pady=(0, 8))
+        top_row.pack(fill="x")
         tk.Label(
             top_row,
             textvariable=self.workbook_analysis_summary_var,
@@ -1433,9 +1448,27 @@ class InvoiceToolApp:
             justify="left",
         ).pack(side="left", fill="x", expand=True)
         tk.Button(top_row, text="分析工作簿", padx=10, command=self._refresh_workbook_analysis).pack(side="right")
+        self.workbook_analysis_toggle_btn = tk.Button(
+            top_row,
+            text="展开列映射 / 条件",
+            padx=10,
+            command=self._toggle_workbook_analysis_panel,
+        )
+        self.workbook_analysis_toggle_btn.pack(side="right", padx=(0, 8))
 
-        content = tk.Frame(analysis_lf)
-        content.pack(fill="x")
+        compact_row = tk.Frame(analysis_lf)
+        compact_row.pack(fill="x", pady=(6, 0))
+        tk.Label(
+            compact_row,
+            textvariable=self.workbook_analysis_compact_var,
+            font=("微软雅黑", 8),
+            fg=self.palette["muted"],
+            anchor="w",
+            justify="left",
+        ).pack(side="left", fill="x", expand=True)
+
+        self.workbook_analysis_content = tk.Frame(analysis_lf)
+        content = self.workbook_analysis_content
 
         left_panel = tk.Frame(content)
         left_panel.pack(side="left", fill="both", expand=True, padx=(0, 10))
@@ -1467,10 +1500,10 @@ class InvoiceToolApp:
         self.workbook_sheet_tree.configure(yscrollcommand=tree_scroll.set)
         self.workbook_sheet_tree.tag_configure("evenrow", background=self.palette["tree_even"])
         self.workbook_sheet_tree.tag_configure("oddrow", background=self.palette["tree_odd"])
-        self.workbook_sheet_tree.tag_configure("recommended", foreground="#1B5E20")
-        self.workbook_sheet_tree.tag_configure("usable", foreground="#1565C0")
-        self.workbook_sheet_tree.tag_configure("warning", foreground="#EF6C00")
-        self.workbook_sheet_tree.tag_configure("error", foreground="#C62828")
+        self.workbook_sheet_tree.tag_configure("recommended", foreground=self.palette["status_success"])
+        self.workbook_sheet_tree.tag_configure("usable", foreground=self.palette["status_preview"])
+        self.workbook_sheet_tree.tag_configure("warning", foreground=self.palette["status_skip"])
+        self.workbook_sheet_tree.tag_configure("error", foreground=self.palette["status_missing"])
         self.workbook_sheet_tree.bind("<<TreeviewSelect>>", self._on_workbook_sheet_select)
         self.workbook_sheet_tree.bind("<Double-1>", self._on_workbook_sheet_select)
 
@@ -1596,6 +1629,26 @@ class InvoiceToolApp:
             padx=10,
             pady=8,
         ).pack(fill="x")
+        self._sync_workbook_analysis_panel_visibility()
+
+    def _sync_workbook_analysis_panel_visibility(self) -> None:
+        content = getattr(self, "workbook_analysis_content", None)
+        if content is None:
+            return
+        if self.workbook_analysis_expanded.get():
+            if not content.winfo_manager():
+                content.pack(fill="x", pady=(8, 0))
+            button_text = "收起列映射 / 条件"
+        else:
+            content.pack_forget()
+            button_text = "展开列映射 / 条件"
+        toggle_btn = getattr(self, "workbook_analysis_toggle_btn", None)
+        if toggle_btn is not None:
+            toggle_btn.config(text=button_text)
+
+    def _toggle_workbook_analysis_panel(self) -> None:
+        self.workbook_analysis_expanded.set(not self.workbook_analysis_expanded.get())
+        self._sync_workbook_analysis_panel_visibility()
 
     # ─────────────── Tab3: 历史记录 ───────────────
 
@@ -2540,6 +2593,7 @@ class InvoiceToolApp:
         self._reset_sheet_row_filters()
         self._active_filter_context = ("", "")
         self.workbook_analysis_summary_var.set(message)
+        self.workbook_analysis_compact_var.set("列映射、行筛选和样本预览默认收起，需要调整时展开。")
         self.workbook_sheet_overview_var.set("先选择 Excel 文件，再从左侧查看每个 sheet 的识别结果。")
         self.workbook_sheet_sample_var.set("样本预览会显示当前工作表前几行数据，便于确认列是否正确。")
         self.selected_invoice_column_name.set("")
@@ -2594,6 +2648,7 @@ class InvoiceToolApp:
             f"推荐工作表：{result.recommended_sheet_name or '未识别'}。"
         )
         self.workbook_analysis_summary_var.set(summary)
+        self.workbook_analysis_compact_var.set("列映射、行筛选和样本预览默认收起，需要调整时展开。")
 
     def _format_sheet_sample_text(self, profile: WorkbookSheetProfile) -> str:
         if not profile.sample_rows:
@@ -2608,6 +2663,7 @@ class InvoiceToolApp:
     def _populate_workbook_sheet_detail(self, sheet_name: str) -> None:
         profile = self.workbook_profiles.get(sheet_name)
         if profile is None:
+            self.workbook_analysis_compact_var.set("列映射、行筛选和样本预览默认收起，需要调整时展开。")
             self.workbook_sheet_overview_var.set("先选择 Excel 文件，再从左侧查看每个 sheet 的识别结果。")
             self.workbook_sheet_sample_var.set("样本预览会显示当前工作表前几行数据，便于确认列是否正确。")
             if hasattr(self, "analysis_invoice_combo"):
@@ -2631,6 +2687,10 @@ class InvoiceToolApp:
         company_candidate_text = "、".join(company_values[:3]) if company_values else "未识别到公司列"
         active_filter_text = self._describe_active_row_filters()
         status = "推荐用于筛选" if profile.recommended else ("可用于筛选" if profile.usable else (profile.issue or "待确认"))
+        self.workbook_analysis_compact_var.set(
+            f"当前：{profile.sheet_name} | 发票列：{profile.selected_invoice_column or '-'} | "
+            f"公司列：{profile.selected_company_column or '-'} | 条件：{active_filter_text}"
+        )
         self.workbook_sheet_overview_var.set(
             f"工作表：{profile.sheet_name}\n"
             f"规模：{profile.row_count} 行 / {profile.column_count} 列\n"
