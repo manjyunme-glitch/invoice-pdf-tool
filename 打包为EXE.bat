@@ -15,6 +15,13 @@ if not defined ENTRY_SCRIPT (
 )
 
 set "OUTPUT_NAME=invoice-pdf-tool-v5.2.2-windows-x64"
+set "ICON_FILE=%~dp0assets\invoice-pdf-tool-icon.ico"
+
+if not exist "%ICON_FILE%" (
+    echo [ERROR] Missing icon file: %ICON_FILE%
+    pause
+    exit /b 1
+)
 
 echo ========================================
 echo   Invoice PDF Tool v5.2.2 - Build EXE
@@ -49,6 +56,8 @@ python -m PyInstaller ^
     --name "%OUTPUT_NAME%" ^
     --noconfirm ^
     --clean ^
+    --icon "%ICON_FILE%" ^
+    --add-data "%ICON_FILE%;assets" ^
     --hidden-import=pandas ^
     --hidden-import=openpyxl ^
     --hidden-import=openpyxl.cell._writer ^

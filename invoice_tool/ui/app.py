@@ -18,6 +18,7 @@ import logging
 import platform
 import re
 import subprocess
+import sys
 import threading
 import tkinter as tk
 from datetime import datetime, timedelta
@@ -46,6 +47,7 @@ UI_THEME_OPTIONS = ("day", "night")
 UI_THEME_LABELS = {"day": "白天", "night": "黑夜"}
 APP_VERSION = "v5.2.2"
 APP_TITLE = f"发票处理工具箱 {APP_VERSION}"
+APP_ICON_RELATIVE_PATH = Path("assets") / "invoice-pdf-tool-icon.ico"
 
 UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
     "day": {
@@ -284,6 +286,7 @@ class InvoiceToolApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(APP_TITLE)
+        self._apply_window_icon()
         self._apply_initial_window_geometry()
         self._default_widget_colors = self._capture_default_widget_colors()
 
@@ -412,6 +415,20 @@ class InvoiceToolApp:
     @staticmethod
     def _save_json(path: Path, data: Any) -> None:
         save_json(path, data)
+
+    @staticmethod
+    def _resource_path(relative_path: Path) -> Path:
+        base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+        return base_path / relative_path
+
+    def _apply_window_icon(self) -> None:
+        icon_path = self._resource_path(APP_ICON_RELATIVE_PATH)
+        if not icon_path.exists():
+            return
+        try:
+            self.root.iconbitmap(str(icon_path))
+        except tk.TclError:
+            pass
 
     def _capture_default_widget_colors(self) -> Dict[str, Dict[str, str]]:
         probes = {
