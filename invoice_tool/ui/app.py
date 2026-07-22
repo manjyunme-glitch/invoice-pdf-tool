@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-发票处理工具箱 v5.2.2
+发票处理工具箱 v5.3.0
 
 当前版本聚焦于：
 - 发票整理
@@ -45,7 +45,7 @@ HISTORY_DATE_OPTIONS = ("全部", "最近7天", "最近30天")
 FILTER_RULE_MODE_OPTIONS = ("不过滤", "等于任一", "包含任一", "不等于任一", "不包含任一")
 UI_THEME_OPTIONS = ("day", "night")
 UI_THEME_LABELS = {"day": "白天", "night": "黑夜"}
-APP_VERSION = "v5.2.2"
+APP_VERSION = "v5.3.0"
 APP_TITLE = f"发票处理工具箱 {APP_VERSION}"
 APP_ICON_RELATIVE_PATH = Path("assets") / "invoice-pdf-tool-icon.ico"
 
@@ -281,7 +281,7 @@ def filter_history_records(
 # ==================== GUI 主应用 ====================
 
 class InvoiceToolApp:
-    """发票处理工具箱 v5.2.2"""
+    """发票处理工具箱 v5.3.0"""
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -521,6 +521,23 @@ class InvoiceToolApp:
         except Exception:
             pass
 
+    @staticmethod
+    def _mix_colors(color1: str, color2: str, weight: float = 0.2) -> str:
+        """Mix color2 into color1. weight is the proportion of color2 (0.0 to 1.0)"""
+        try:
+            c1 = color1.lstrip('#')
+            c2 = color2.lstrip('#')
+            r1, g1, b1 = int(c1[0:2], 16), int(c1[2:4], 16), int(c1[4:6], 16)
+            r2, g2, b2 = int(c2[0:2], 16), int(c2[2:4], 16), int(c2[4:6], 16)
+            
+            r = int(r1 * (1 - weight) + r2 * weight)
+            g = int(g1 * (1 - weight) + g2 * weight)
+            b = int(b1 * (1 - weight) + b2 * weight)
+            
+            return f"#{r:02X}{g:02X}{b:02X}"
+        except Exception:
+            return color1
+
     def _configure_ttk_styles(self) -> None:
         palette = self.palette
         if MODERN_UI and ttkb is not None:
@@ -537,8 +554,8 @@ class InvoiceToolApp:
         style.configure("TNotebook", background=palette["root_bg"], borderwidth=0)
         style.configure(
             "TNotebook.Tab",
-            font=("微软雅黑", 9, "bold"),
-            padding=[10, 3],
+            font=("微软雅黑", 10, "bold"),
+            padding=[16, 6],
             background=palette["surface_soft"],
             foreground=palette["muted"],
         )
@@ -549,7 +566,7 @@ class InvoiceToolApp:
         )
         style.configure(
             "Treeview",
-            rowheight=23,
+            rowheight=28,
             font=("微软雅黑", 9),
             background=palette["tree_odd"],
             fieldbackground=palette["tree_odd"],
@@ -558,7 +575,7 @@ class InvoiceToolApp:
         )
         style.configure(
             "Treeview.Heading",
-            font=("微软雅黑", 9, "bold"),
+            font=("微软雅黑", 10, "bold"),
             background=palette["surface_soft"],
             foreground=palette["text"],
             relief="flat",
@@ -594,7 +611,14 @@ class InvoiceToolApp:
                 widget.configure(bg=parent_bg)
             if cls in {"Labelframe", "LabelFrame"}:
                 try:
-                    widget.configure(fg=palette["text"])
+                    widget.configure(
+                        fg=palette["text"],
+                        relief="flat",
+                        bd=0,
+                        highlightthickness=1,
+                        highlightbackground=palette["border"],
+                        highlightcolor=palette["border"]
+                    )
                 except tk.TclError:
                     pass
         elif cls == "Label":
@@ -619,6 +643,8 @@ class InvoiceToolApp:
                 highlightbackground=palette["border"],
                 highlightcolor=palette["primary"],
                 relief="flat",
+                bd=0,
+                highlightthickness=1,
             )
         elif cls == "Listbox":
             widget.configure(
@@ -628,6 +654,9 @@ class InvoiceToolApp:
                 selectforeground="#FFFFFF",
                 highlightbackground=palette["border"],
                 highlightcolor=palette["primary"],
+                relief="flat",
+                bd=0,
+                highlightthickness=1,
             )
         elif cls == "Button" and self._should_apply_default_bg(widget):
             widget.configure(
@@ -639,6 +668,7 @@ class InvoiceToolApp:
                 bd=0,
                 highlightthickness=0,
             )
+            self._bind_hover(widget, palette["button_bg"], palette["button_hover"])
         for child in widget.winfo_children():
             self._apply_theme_to_widget_tree(child)
 
@@ -756,11 +786,29 @@ class InvoiceToolApp:
         self._sync_output_folder_mode_ui()
         self._save_config()
 
+    def _get_safe_company_name_index(self) -> int:
+        try:
+            val = self.company_name_index.get()
+            if val < 0:
+                raise ValueError("索引不能为负数")
+            return val
+        except (tk.TclError, ValueError):
+            return self.config.get("company_name_index", 2)
+
+    def _get_safe_invoice_number_index(self) -> int:
+        try:
+            val = self.invoice_number_index.get()
+            if val < 0:
+                raise ValueError("索引不能为负数")
+            return val
+        except (tk.TclError, ValueError):
+            return self.config.get("invoice_number_index", 1)
+
     def _save_config(self) -> None:
         self.config["ui_theme"] = self.ui_theme.get().strip()
         self.config["rule_preset_id"] = self.rule_preset_id.get().strip()
-        self.config["company_name_index"] = self.company_name_index.get()
-        self.config["invoice_number_index"] = self.invoice_number_index.get()
+        self.config["company_name_index"] = self._get_safe_company_name_index()
+        self.config["invoice_number_index"] = self._get_safe_invoice_number_index()
         self.config["excel_sheet_name"] = self.excel_sheet_name.get().strip()
         self.config["selected_invoice_column_name"] = self.selected_invoice_column_name.get().strip()
         self.config["selected_company_column_name"] = self.selected_company_column_name.get().strip()
@@ -859,6 +907,10 @@ class InvoiceToolApp:
         title_frame = tk.Frame(self.root, bg=title_bg, pady=5, padx=10)
         title_frame.pack(fill="x")
 
+        # 标题栏底部 1px 主色渐变条（微光分割线）
+        title_sep = tk.Frame(self.root, height=1, bg=palette["primary"])
+        title_sep.pack(fill="x")
+
         top_row = tk.Frame(title_frame, bg=title_bg)
         top_row.pack(fill="x")
         title_left = tk.Frame(top_row, bg=title_bg)
@@ -880,19 +932,23 @@ class InvoiceToolApp:
 
         title_actions = tk.Frame(top_row, bg=title_bg)
         title_actions.pack(side="right")
+        theme_icon = "☀️" if self.ui_theme.get() == "day" else "🌙"
         self.theme_badge = tk.Label(
             title_actions,
-            text=f"{self._theme_label()} UI",
+            text=f"{theme_icon} {self._theme_label()}模式",
             font=("微软雅黑", 8, "bold"),
             bg=palette["title_badge_bg"],
             fg=palette["title_badge_fg"],
-            padx=10,
-            pady=4,
+            padx=12,
+            pady=3,
+            highlightthickness=1,
+            highlightbackground=self._mix_colors(palette["title_badge_bg"], palette["title_badge_fg"], 0.2),
+            highlightcolor=self._mix_colors(palette["title_badge_bg"], palette["title_badge_fg"], 0.2),
         )
         self.theme_badge.pack(side="left", padx=(0, 8))
         self.theme_toggle_btn = tk.Button(
             title_actions,
-            text="切换到黑夜" if self.ui_theme.get() == "day" else "切换到白天",
+            text="🌙 切换到黑夜" if self.ui_theme.get() == "day" else "☀️ 切换到白天",
             font=("微软雅黑", 9),
             bg=palette["button_bg"],
             fg=palette["button_fg"],
@@ -978,21 +1034,47 @@ class InvoiceToolApp:
         toggle_bar.pack(fill="x")
 
         self._log_toggle_label = tk.Label(
-            toggle_bar, text="▶ 运行日志（点击展开）",
+            toggle_bar, text="▲ 运行日志（点击展开）" if not self._log_visible.get() else "▼ 运行日志（点击收起）",
             font=("微软雅黑", 9, "bold"), bg=palette["log_drawer_bg"], fg=palette["text"],
             padx=10, pady=4, cursor="hand2",
         )
         self._log_toggle_label.pack(side="left")
 
         # 工具按钮（始终可见）
-        tk.Button(
+        self.log_clear_btn = tk.Button(
             toggle_bar, text="清空", font=("微软雅黑", 8),
             command=self._clear_log, padx=6, pady=0, bd=0, bg=palette["log_drawer_bg"], fg=palette["text"],
-        ).pack(side="right", padx=(0, 6))
-        tk.Button(
+        )
+        self.log_clear_btn.pack(side="right", padx=(0, 6))
+
+        self.log_export_btn = tk.Button(
             toggle_bar, text="导出", font=("微软雅黑", 8),
             command=self._export_log, padx=6, pady=0, bd=0, bg=palette["log_drawer_bg"], fg=palette["text"],
-        ).pack(side="right")
+        )
+        self.log_export_btn.pack(side="right")
+
+        # Bind hover effects on toggle_bar and its child elements
+        normal_bg = palette["log_drawer_bg"]
+        hover_bg = self._mix_colors(normal_bg, palette["text"], 0.08)
+        btn_hover_bg = self._mix_colors(normal_bg, palette["text"], 0.18)
+
+        def on_enter(e):
+            toggle_bar.config(bg=hover_bg)
+            self._log_toggle_label.config(bg=hover_bg)
+            self.log_clear_btn.config(bg=hover_bg)
+            self.log_export_btn.config(bg=hover_bg)
+        def on_leave(e):
+            toggle_bar.config(bg=normal_bg)
+            self._log_toggle_label.config(bg=normal_bg)
+            self.log_clear_btn.config(bg=normal_bg)
+            self.log_export_btn.config(bg=normal_bg)
+
+        toggle_bar.bind("<Enter>", on_enter)
+        toggle_bar.bind("<Leave>", on_leave)
+        self._log_toggle_label.bind("<Enter>", on_enter)
+        self._log_toggle_label.bind("<Leave>", on_leave)
+        self._bind_hover(self.log_clear_btn, hover_bg, btn_hover_bg)
+        self._bind_hover(self.log_export_btn, hover_bg, btn_hover_bg)
 
         toggle_bar.bind("<Button-1>", lambda e: self._toggle_log_drawer())
         self._log_toggle_label.bind("<Button-1>", lambda e: self._toggle_log_drawer())
@@ -1006,15 +1088,19 @@ class InvoiceToolApp:
         self.log_text = tk.Text(
             self._log_content, font=("Consolas", 9), wrap="word",
             yscrollcommand=log_scroll.set, bg=palette["log_bg"], fg=palette["log_fg"], height=6,
+            highlightthickness=1, highlightbackground=palette["border"], highlightcolor=palette["primary"],
+            relief="flat", bd=0
         )
         self.log_text.pack(fill="both", expand=True)
         log_scroll.config(command=self.log_text.yview)
 
-        self.log_text.tag_config("success", foreground="#4EC9B0")
-        self.log_text.tag_config("error", foreground="#FB7185" if self.ui_theme.get() == "night" else "#F44747")
-        self.log_text.tag_config("warning", foreground="#FBBF24" if self.ui_theme.get() == "night" else "#DCDCAA")
-        self.log_text.tag_config("info", foreground="#7DD3FC" if self.ui_theme.get() == "night" else "#569CD6")
-        self.log_text.tag_config("header", foreground="#C4B5FD" if self.ui_theme.get() == "night" else "#C586C0")
+        # Make console tag colors theme-aware
+        is_night = self.ui_theme.get() == "night"
+        self.log_text.tag_config("success", foreground="#34D399" if is_night else "#166534")
+        self.log_text.tag_config("error", foreground="#FB7185" if is_night else "#B91C1C")
+        self.log_text.tag_config("warning", foreground="#FBBF24" if is_night else "#B45309")
+        self.log_text.tag_config("info", foreground="#7DD3FC" if is_night else "#1E40AF")
+        self.log_text.tag_config("header", foreground="#C4B5FD" if is_night else "#6D28D9")
 
         # 注册自定义 GUI handler
         self._gui_log_handler = TkTextHandler(self.log_text, self.root)
@@ -1030,7 +1116,7 @@ class InvoiceToolApp:
     def _toggle_log_drawer(self) -> None:
         if self._log_visible.get():
             self._log_content.pack_forget()
-            self._log_toggle_label.config(text="▶ 运行日志（点击展开）")
+            self._log_toggle_label.config(text="▲ 运行日志（点击展开）")
             self._log_visible.set(False)
         else:
             self._log_content.pack(fill="both", expand=False)
@@ -1140,8 +1226,13 @@ class InvoiceToolApp:
         self.organize_folder_entry = tk.Entry(row, textvariable=self.organize_folder_path, font=("微软雅黑", 11))
         self.organize_folder_entry.pack(side="left", fill="x", expand=True)
 
-        tk.Button(row, text="浏览", font=("微软雅黑", 10), command=self._browse_organize_folder, padx=15).pack(side="right", padx=(10, 0))
-        tk.Button(row, text="🔍 扫描", font=("微软雅黑", 10), command=self._scan_files, padx=15).pack(side="right", padx=(5, 0))
+        self.org_browse_btn = tk.Button(row, text="浏览", font=("微软雅黑", 10), command=self._browse_organize_folder, padx=15)
+        self.org_browse_btn.pack(side="right", padx=(10, 0))
+        self._style_action_button(self.org_browse_btn, "neutral")
+
+        self.org_scan_btn = tk.Button(row, text="🔍 扫描", font=("微软雅黑", 10), command=self._scan_files, padx=15)
+        self.org_scan_btn.pack(side="right", padx=(5, 0))
+        self._style_action_button(self.org_scan_btn, "secondary")
 
         opt = tk.Frame(folder_lf)
         opt.pack(fill="x", pady=(8, 0))
@@ -1156,8 +1247,14 @@ class InvoiceToolApp:
 
         sel_bar = tk.Frame(list_lf)
         sel_bar.pack(fill="x", pady=(0, 5))
-        tk.Button(sel_bar, text="✅ 全选", font=("微软雅黑", 9), command=self._select_all, padx=8).pack(side="left", padx=(0, 4))
-        tk.Button(sel_bar, text="⬜ 取消全选", font=("微软雅黑", 9), command=self._deselect_all, padx=8).pack(side="left")
+        self.org_sel_all_btn = tk.Button(sel_bar, text="✅ 全选", font=("微软雅黑", 9), command=self._select_all, padx=8)
+        self.org_sel_all_btn.pack(side="left", padx=(0, 4))
+        self._style_action_button(self.org_sel_all_btn, "neutral")
+
+        self.org_desel_all_btn = tk.Button(sel_bar, text="⬜ 取消全选", font=("微软雅黑", 9), command=self._deselect_all, padx=8)
+        self.org_desel_all_btn.pack(side="left")
+        self._style_action_button(self.org_desel_all_btn, "neutral")
+
         self.file_count_label = tk.Label(sel_bar, text="已选择: 0 / 0", font=("微软雅黑", 9), fg=self.palette["muted"])
         self.file_count_label.pack(side="right")
 
@@ -1241,6 +1338,7 @@ class InvoiceToolApp:
         hbf.pack(fill="x", pady=(0, 6))
         self.help_btn = tk.Button(hbf, text="📖 显示使用说明", font=("微软雅黑", 9), command=self._toggle_help)
         self.help_btn.pack(side="left")
+        self._style_action_button(self.help_btn, "secondary")
 
         self.help_content = tk.LabelFrame(panel, text="📋 使用说明", font=("微软雅黑", 10, "bold"), padx=15, pady=10)
         tk.Label(
@@ -1269,8 +1367,11 @@ class InvoiceToolApp:
         path_grid.grid_columnconfigure(4, weight=1)
 
         tk.Label(path_grid, text="Excel文件:", font=("微软雅黑", 9), width=10, anchor="w").grid(row=0, column=0, sticky="w", padx=(0, 4), pady=3)
-        tk.Entry(path_grid, textvariable=self.excel_path, font=("微软雅黑", 9)).grid(row=0, column=1, sticky="ew", padx=(0, 6), pady=3)
-        tk.Button(path_grid, text="浏览", command=self._browse_excel, padx=8).grid(row=0, column=2, sticky="ew", padx=(0, 12), pady=3)
+        self.excel_path_entry = tk.Entry(path_grid, textvariable=self.excel_path, font=("微软雅黑", 9))
+        self.excel_path_entry.grid(row=0, column=1, sticky="ew", padx=(0, 6), pady=3)
+        self.excel_browse_btn = tk.Button(path_grid, text="浏览", command=self._browse_excel, padx=8)
+        self.excel_browse_btn.grid(row=0, column=2, sticky="ew", padx=(0, 12), pady=3)
+        self._style_action_button(self.excel_browse_btn, "neutral")
 
         tk.Label(path_grid, text="工作表:", font=("微软雅黑", 9), width=8, anchor="w").grid(row=0, column=3, sticky="w", padx=(0, 4), pady=3)
         self.excel_sheet_combo = ttk.Combobox(
@@ -1281,17 +1382,23 @@ class InvoiceToolApp:
         )
         self.excel_sheet_combo.grid(row=0, column=4, sticky="ew", padx=(0, 6), pady=3)
         self.excel_sheet_combo.bind("<<ComboboxSelected>>", self._on_excel_sheet_change)
-        tk.Button(path_grid, text="刷新", command=self._refresh_excel_sheets, padx=8).grid(row=0, column=5, sticky="ew", pady=3)
+        self.sheet_refresh_btn = tk.Button(path_grid, text="刷新", command=self._refresh_excel_sheets, padx=8)
+        self.sheet_refresh_btn.grid(row=0, column=5, sticky="ew", pady=3)
+        self._style_action_button(self.sheet_refresh_btn, "neutral")
 
         tk.Label(path_grid, text="PDF文件夹:", font=("微软雅黑", 9), width=10, anchor="w").grid(row=1, column=0, sticky="w", padx=(0, 4), pady=3)
-        tk.Entry(path_grid, textvariable=self.pdf_folder, font=("微软雅黑", 9)).grid(row=1, column=1, sticky="ew", padx=(0, 6), pady=3)
-        tk.Button(path_grid, text="浏览", command=self._browse_pdf_folder, padx=8).grid(row=1, column=2, sticky="ew", padx=(0, 12), pady=3)
+        self.pdf_folder_entry = tk.Entry(path_grid, textvariable=self.pdf_folder, font=("微软雅黑", 9))
+        self.pdf_folder_entry.grid(row=1, column=1, sticky="ew", padx=(0, 6), pady=3)
+        self.pdf_browse_btn = tk.Button(path_grid, text="浏览", command=self._browse_pdf_folder, padx=8)
+        self.pdf_browse_btn.grid(row=1, column=2, sticky="ew", padx=(0, 12), pady=3)
+        self._style_action_button(self.pdf_browse_btn, "neutral")
 
         tk.Label(path_grid, text="导出文件夹:", font=("微软雅黑", 9), width=8, anchor="w").grid(row=1, column=3, sticky="w", padx=(0, 4), pady=3)
         self.output_folder_entry = tk.Entry(path_grid, textvariable=self.output_folder, font=("微软雅黑", 9))
         self.output_folder_entry.grid(row=1, column=4, sticky="ew", padx=(0, 6), pady=3)
         self.output_folder_browse_btn = tk.Button(path_grid, text="浏览", command=self._browse_output_folder, padx=8)
         self.output_folder_browse_btn.grid(row=1, column=5, sticky="ew", pady=3)
+        self._style_action_button(self.output_folder_browse_btn, "neutral")
 
         auto_output_row = tk.Frame(path_grid)
         auto_output_row.grid(row=2, column=3, columnspan=3, sticky="w", pady=(2, 0))
@@ -1334,7 +1441,9 @@ class InvoiceToolApp:
         self.filter_run_btn.pack(side="left", padx=(0, 8))
         self._style_action_button(self.filter_run_btn, "primary")
 
-        tk.Button(fbtn, text="📂 打开导出文件夹", font=("微软雅黑", 10), padx=12, pady=5, command=self._open_output_folder).pack(side="left", padx=(0, 8))
+        self.open_output_btn = tk.Button(fbtn, text="📂 打开导出文件夹", font=("微软雅黑", 10), padx=12, pady=5, command=self._open_output_folder)
+        self.open_output_btn.pack(side="left", padx=(0, 8))
+        self._style_action_button(self.open_output_btn, "secondary")
 
         self.cancel_flt_btn = tk.Button(
             fbtn, text="⏹ 取消", font=("微软雅黑", 10),
@@ -1388,11 +1497,15 @@ class InvoiceToolApp:
         self.filter_keyword_entry.pack(side="left", fill="x", expand=True, padx=(6, 10))
         self.filter_keyword_entry.bind("<KeyRelease>", self._on_filter_result_filters_changed)
 
-        tk.Button(tool_row, text="重置筛选条件", font=("微软雅黑", 9), padx=10, command=self._reset_filter_result_filters).pack(side="left", padx=(0, 6))
+        self.reset_filter_btn = tk.Button(tool_row, text="重置筛选条件", font=("微软雅黑", 9), padx=10, command=self._reset_filter_result_filters)
+        self.reset_filter_btn.pack(side="left", padx=(0, 6))
+        self._style_action_button(self.reset_filter_btn, "neutral")
         self.copy_missing_btn = tk.Button(tool_row, text="复制未匹配发票号", font=("微软雅黑", 9), padx=10, command=self._copy_missing_invoices, state="disabled")
         self.copy_missing_btn.pack(side="left", padx=(0, 6))
+        self._style_action_button(self.copy_missing_btn, "secondary")
         self.open_result_btn = tk.Button(tool_row, text="打开选中结果", font=("微软雅黑", 9), padx=10, command=self._open_selected_filter_result, state="disabled")
         self.open_result_btn.pack(side="left")
+        self._style_action_button(self.open_result_btn, "secondary")
         self.filter_result_count_label = tk.Label(tool_row, text="显示 0 / 0 条", font=("微软雅黑", 9), fg=self.palette["muted"])
         self.filter_result_count_label.pack(side="right")
 
@@ -1429,7 +1542,13 @@ class InvoiceToolApp:
         self.filter_result_tree.bind("<<TreeviewSelect>>", self._on_filter_result_select)
         self.filter_result_tree.bind("<Double-1>", self._open_selected_filter_result)
 
-        detail_frame = tk.Frame(res_lf, bg=self.palette["detail_bg"], bd=1, relief="solid")
+        detail_frame = tk.Frame(
+            res_lf,
+            bg=self.palette["detail_bg"],
+            highlightthickness=1,
+            highlightbackground=self.palette["border"],
+            highlightcolor=self.palette["border"]
+        )
         detail_frame.pack(fill="x", pady=(8, 0))
         tk.Label(
             detail_frame,
@@ -1464,7 +1583,9 @@ class InvoiceToolApp:
             anchor="w",
             justify="left",
         ).pack(side="left", fill="x", expand=True)
-        tk.Button(top_row, text="分析工作簿", padx=10, command=self._refresh_workbook_analysis).pack(side="right")
+        self.workbook_analysis_btn = tk.Button(top_row, text="分析工作簿", padx=10, command=self._refresh_workbook_analysis)
+        self.workbook_analysis_btn.pack(side="right")
+        self._style_action_button(self.workbook_analysis_btn, "secondary")
         self.workbook_analysis_toggle_btn = tk.Button(
             top_row,
             text="展开列映射 / 条件",
@@ -1472,6 +1593,7 @@ class InvoiceToolApp:
             command=self._toggle_workbook_analysis_panel,
         )
         self.workbook_analysis_toggle_btn.pack(side="right", padx=(0, 8))
+        self._style_action_button(self.workbook_analysis_toggle_btn, "neutral")
 
         compact_row = tk.Frame(analysis_lf)
         compact_row.pack(fill="x", pady=(6, 0))
@@ -1490,7 +1612,13 @@ class InvoiceToolApp:
         left_panel = tk.Frame(content)
         left_panel.pack(side="left", fill="both", expand=True, padx=(0, 10))
 
-        right_panel = tk.Frame(content, bg=self.palette["surface_alt"], bd=1, relief="solid")
+        right_panel = tk.Frame(
+            content,
+            bg=self.palette["surface_alt"],
+            highlightthickness=1,
+            highlightbackground=self.palette["border"],
+            highlightcolor=self.palette["border"]
+        )
         right_panel.pack(side="right", fill="both")
 
         tree_frame = tk.Frame(left_panel)
@@ -1707,7 +1835,9 @@ class InvoiceToolApp:
         self.history_keyword_entry.pack(side="left", fill="x", expand=True, padx=(6, 10))
         self.history_keyword_entry.bind("<KeyRelease>", self._on_history_filters_changed)
 
-        tk.Button(filter_bar, text="重置", font=("微软雅黑", 9), padx=10, command=self._reset_history_filters).pack(side="left")
+        self.history_reset_btn = tk.Button(filter_bar, text="重置", font=("微软雅黑", 9), padx=10, command=self._reset_history_filters)
+        self.history_reset_btn.pack(side="left")
+        self._style_action_button(self.history_reset_btn, "neutral")
         tk.Label(filter_bar, textvariable=self.history_summary_var, font=("微软雅黑", 9), fg=self.palette["muted"]).pack(side="right")
 
         tf = tk.Frame(self.history_frame)
@@ -1730,7 +1860,7 @@ class InvoiceToolApp:
         self.history_tree.configure(yscrollcommand=hscr.set)
         self.history_tree.pack(side="left", fill="both", expand=True)
         hscr.pack(side="right", fill="y")
-        self.history_tree.bind("<Double-1>", lambda event: self._view_history_detail())
+        self.history_tree.bind("<Double-1>", lambda event: self._open_history_folder())
 
         hbtn = tk.Frame(self.history_frame)
         hbtn.pack(fill="x", pady=12)
@@ -1739,14 +1869,21 @@ class InvoiceToolApp:
         rb.pack(side="left", padx=(0, 8))
         self._style_action_button(rb, "warning")
 
-        tk.Button(hbtn, text="🔍 查看详情", font=("微软雅黑", 10), padx=12, pady=5, command=self._view_history_detail).pack(side="left", padx=(0, 8))
-        tk.Button(hbtn, text="📂 打开文件夹", font=("微软雅黑", 10), padx=12, pady=5, command=self._open_history_folder).pack(side="left", padx=(0, 8))
+        self.history_view_btn = tk.Button(hbtn, text="🔍 查看详情", font=("微软雅黑", 10), padx=12, pady=5, command=self._view_history_detail)
+        self.history_view_btn.pack(side="left", padx=(0, 8))
+        self._style_action_button(self.history_view_btn, "secondary")
+
+        self.history_open_btn = tk.Button(hbtn, text="📂 打开文件夹", font=("微软雅黑", 10), padx=12, pady=5, command=self._open_history_folder)
+        self.history_open_btn.pack(side="left", padx=(0, 8))
+        self._style_action_button(self.history_open_btn, "secondary")
 
         cb = tk.Button(hbtn, text="🗑️ 清空历史", font=("微软雅黑", 10), padx=12, pady=5, command=self._clear_all_history)
         cb.pack(side="left")
         self._style_action_button(cb, "danger")
 
-        tk.Button(hbtn, text="🔄 刷新", font=("微软雅黑", 10), padx=12, pady=5, command=self._refresh_history_tree).pack(side="right")
+        self.history_refresh_btn = tk.Button(hbtn, text="🔄 刷新", font=("微软雅黑", 10), padx=12, pady=5, command=self._refresh_history_tree)
+        self.history_refresh_btn.pack(side="right")
+        self._style_action_button(self.history_refresh_btn, "neutral")
 
         self._refresh_history_tree()
 
@@ -1807,24 +1944,34 @@ class InvoiceToolApp:
         return OpenpyxlFilterReportExporter()
 
     def _create_filter_metric_card(self, parent: tk.Widget, metric_key: str, bg: str, fg: str) -> None:
-        card = tk.Frame(parent, bg=bg, bd=1, relief="flat", padx=10, pady=8)
-        card.pack(side="left", fill="x", expand=True, padx=3)
+        border_color = self._mix_colors(bg, fg, 0.15)
+        card = tk.Frame(
+            parent,
+            bg=bg,
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=border_color,
+            highlightcolor=border_color,
+            padx=12,
+            pady=10,
+        )
+        card.pack(side="left", fill="x", expand=True, padx=4)
         tk.Label(
             card,
             textvariable=self.filter_metric_labels[metric_key],
-            font=("微软雅黑", 8, "bold"),
+            font=("微软雅黑", 8),
             bg=bg,
-            fg=fg,
+            fg=self._mix_colors(bg, fg, 0.7),
             anchor="w",
         ).pack(anchor="w")
         tk.Label(
             card,
             textvariable=self.filter_metric_values[metric_key],
-            font=("微软雅黑", 15, "bold"),
+            font=("微软雅黑", 18, "bold"),
             bg=bg,
             fg=fg,
             anchor="w",
-        ).pack(anchor="w", pady=(4, 0))
+        ).pack(anchor="w", pady=(6, 0))
 
     def _update_filter_summary(
         self,
@@ -2059,7 +2206,9 @@ class InvoiceToolApp:
         )
         self.rule_preset_combo.pack(side="left", fill="x", expand=True, padx=5)
         self.rule_preset_combo.bind("<<ComboboxSelected>>", self._on_rule_preset_change)
-        tk.Button(preset_row, text="应用预设", padx=10, command=self._apply_rule_preset).pack(side="right")
+        self.preset_apply_btn = tk.Button(preset_row, text="应用预设", padx=10, command=self._apply_rule_preset)
+        self.preset_apply_btn.pack(side="right")
+        self._style_action_button(self.preset_apply_btn, "secondary")
 
         self._sync_rule_preset_ui()
         tk.Label(
@@ -2133,8 +2282,13 @@ class InvoiceToolApp:
         save_btn.pack(side="left")
         self.settings_save_btn = save_btn
         self._style_action_button(save_btn, "success")
-        tk.Button(button_row, text="打开配置目录", font=("微软雅黑", 9), padx=12, command=self._open_config_directory).pack(side="left", padx=(8, 0))
-        tk.Button(button_row, text="打开日志文件", font=("微软雅黑", 9), padx=12, command=self._open_log_file).pack(side="left", padx=(8, 0))
+        self.open_config_btn = tk.Button(button_row, text="打开配置目录", font=("微软雅黑", 9), padx=12, command=self._open_config_directory)
+        self.open_config_btn.pack(side="left", padx=(8, 0))
+        self._style_action_button(self.open_config_btn, "secondary")
+
+        self.open_log_btn = tk.Button(button_row, text="打开日志文件", font=("微软雅黑", 9), padx=12, command=self._open_log_file)
+        self.open_log_btn.pack(side="left", padx=(8, 0))
+        self._style_action_button(self.open_log_btn, "secondary")
 
         tk.Label(action_frame, text=f"配置目录：{CONFIG_DIR}", font=("微软雅黑", 8), fg=self.palette["muted"], anchor="w", justify="left").pack(fill="x", pady=(10, 0))
         tk.Label(action_frame, text=f"日志文件：{LOG_FILE}", font=("微软雅黑", 8), fg=self.palette["muted"], anchor="w", justify="left").pack(fill="x", pady=(4, 0))
@@ -2159,8 +2313,13 @@ class InvoiceToolApp:
         top_bar = tk.Frame(recent_frame)
         top_bar.pack(fill="x", pady=(0, 8))
         tk.Label(top_bar, textvariable=self.recent_error_summary_var, font=("微软雅黑", 9), fg=self.palette["muted"]).pack(side="left")
-        tk.Button(top_bar, text="复制", font=("微软雅黑", 8), padx=8, command=self._copy_selected_recent_error).pack(side="right")
-        tk.Button(top_bar, text="清空", font=("微软雅黑", 8), padx=8, command=self._clear_recent_errors).pack(side="right", padx=(0, 6))
+        self.error_copy_btn = tk.Button(top_bar, text="复制", font=("微软雅黑", 8), padx=8, command=self._copy_selected_recent_error)
+        self.error_copy_btn.pack(side="right")
+        self._style_action_button(self.error_copy_btn, "secondary")
+
+        self.error_clear_btn = tk.Button(top_bar, text="清空", font=("微软雅黑", 8), padx=8, command=self._clear_recent_errors)
+        self.error_clear_btn.pack(side="right", padx=(0, 6))
+        self._style_action_button(self.error_clear_btn, "warning")
 
         list_frame = tk.Frame(recent_frame)
         list_frame.pack(fill="both", expand=True)
@@ -2186,8 +2345,17 @@ class InvoiceToolApp:
         self._refresh_recent_error_list()
 
     def _save_settings(self) -> None:
+        try:
+            c_idx = self.company_name_index.get()
+            i_idx = self.invoice_number_index.get()
+            if c_idx < 0 or i_idx < 0:
+                raise ValueError("索引不能为负数")
+        except (tk.TclError, ValueError):
+            messagebox.showerror("错误", "保存失败：段位索引必须是大于或等于 0 的整数！")
+            return
+
         self._save_config()
-        idx = self.company_name_index.get()
+        idx = self._get_safe_company_name_index()
         self.organize_hint.config(text=f"  💡 公司名在第{idx+1}段（可在设置中修改）")
         self._refresh_excel_sheets(silent=True)
         logger.info("✅ 设置已保存")
@@ -2199,25 +2367,74 @@ class InvoiceToolApp:
         if DND_SUPPORT:
             try:
                 self.organize_folder_entry.drop_target_register(DND_FILES)
-                self.organize_folder_entry.dnd_bind("<<Drop>>", self._on_drop)
+                self.organize_folder_entry.dnd_bind("<<Drop>>", self._on_organize_drop)
+
+                # 筛选 Tab
+                self.excel_path_entry.drop_target_register(DND_FILES)
+                self.excel_path_entry.dnd_bind("<<Drop>>", self._on_excel_drop)
+
+                self.pdf_folder_entry.drop_target_register(DND_FILES)
+                self.pdf_folder_entry.dnd_bind("<<Drop>>", self._on_pdf_drop)
+
+                self.output_folder_entry.drop_target_register(DND_FILES)
+                self.output_folder_entry.dnd_bind("<<Drop>>", self._on_output_drop)
                 logger.info("✅ 拖拽功能已启用")
             except Exception as e:
                 logger.warning(f"拖拽初始化失败：{e}（不影响其他功能）")
         else:
             logger.warning("拖拽未启用（需 tkinterdnd2）")
 
-    def _on_drop(self, event) -> None:
+    def _parse_dnd_event_paths(self, event_data: str) -> List[str]:
         paths = []
-        for m in re.finditer(r"\{([^}]+)\}|(\S+)", event.data):
+        for m in re.finditer(r"\{([^}]+)\}|(\S+)", event_data):
             p = (m.group(1) or m.group(2)).strip("\"'")
             paths.append(p)
+        return paths
+
+    def _on_organize_drop(self, event) -> None:
+        paths = self._parse_dnd_event_paths(event.data)
         if not paths:
             return
         p = Path(paths[0])
         folder = p if p.is_dir() else p.parent
         self.organize_folder_path.set(str(folder))
-        logger.info(f"📂 拖入文件夹：{folder}")
+        logger.info(f"📂 拖入整理文件夹：{folder}")
         self._scan_files()
+
+    def _on_excel_drop(self, event) -> None:
+        paths = self._parse_dnd_event_paths(event.data)
+        if not paths:
+            return
+        p = Path(paths[0])
+        if p.is_file() and p.suffix.lower() in (".xlsx", ".xls"):
+            self.excel_path.set(str(p))
+            logger.info(f"📂 拖入 Excel 文件：{p}")
+            self._refresh_excel_sheets()
+        else:
+            messagebox.showwarning("提示", "请拖入有效的 Excel 文件（.xlsx 或 .xls）")
+
+    def _on_pdf_drop(self, event) -> None:
+        paths = self._parse_dnd_event_paths(event.data)
+        if not paths:
+            return
+        p = Path(paths[0])
+        folder = p if p.is_dir() else p.parent
+        self.pdf_folder.set(str(folder))
+        logger.info(f"📂 拖入 PDF 文件夹：{folder}")
+
+    def _on_output_drop(self, event) -> None:
+        paths = self._parse_dnd_event_paths(event.data)
+        if not paths:
+            return
+        p = Path(paths[0])
+        folder = p if p.is_dir() else p.parent
+        if self.auto_output_by_sheet.get():
+            self.auto_output_by_sheet.set(False)
+            self._sync_output_folder_mode_ui()
+        self.manual_output_folder.set(str(folder))
+        self.output_folder.set(str(folder))
+        logger.info(f"📂 拖入导出文件夹：{folder}")
+        self._save_config()
 
     # ─────────────── 进度工具 ───────────────
 
@@ -2315,7 +2532,7 @@ class InvoiceToolApp:
         self.file_check_vars.clear()
         self.preview_data.clear()
 
-        cidx = self.company_name_index.get()
+        cidx = self._get_safe_company_name_index()
         pdfs = InvoiceOrganizer.scan_pdf_files(folder, self.organize_recursive.get())
 
         if not pdfs:
@@ -2914,7 +3131,7 @@ class InvoiceToolApp:
             preview = FilterService.preview(
                 excel_p,
                 pdf_p,
-                self.invoice_number_index.get(),
+                self._get_safe_invoice_number_index(),
                 recursive=self.filter_recursive.get(),
                 sheet_name=self.excel_sheet_name.get(),
                 invoice_column_name=self.selected_invoice_column_name.get().strip() or None,
@@ -3020,7 +3237,7 @@ class InvoiceToolApp:
                 excel_path=excel_p,
                 pdf_folder=pdf_p,
                 output_dir=out_p,
-                invoice_index=self.invoice_number_index.get(),
+                invoice_index=self._get_safe_invoice_number_index(),
                 recursive=self.filter_recursive.get(),
                 sheet_name=self.excel_sheet_name.get(),
                 invoice_column_name=self.selected_invoice_column_name.get().strip() or None,
@@ -3204,17 +3421,35 @@ class InvoiceToolApp:
             count_desc += f"（另含 {report_count} 个报告）"
         for t in [f"时间：{rec['time']}", f"类型：{rec.get('type','整理')}", f"文件夹：{rec['folder']}", f"数量：{count_desc}"]:
             tk.Label(win, text=t, font=("微软雅黑", 10), wraplength=700).pack(anchor="w", padx=10)
-        lf = tk.LabelFrame(win, text="文件列表", padx=10, pady=10)
+        lf = tk.LabelFrame(win, text="文件列表 (双击列表项可直接打开文件)", padx=10, pady=10)
         lf.pack(fill="both", expand=True, padx=10, pady=10)
         scr = tk.Scrollbar(lf)
         scr.pack(side="right", fill="y")
         lb = tk.Listbox(lf, font=("Consolas", 9), yscrollcommand=scr.set)
         lb.pack(fill="both", expand=True)
         scr.config(command=lb.yview)
+
+        item_paths = []
         for m in rec["moves"]:
             lb.insert(tk.END, m["filename"])
+            item_paths.append(Path(m["target"]))
         for report_file in rec.get("report_files", []):
             lb.insert(tk.END, f"[报告] {Path(report_file).name}")
+            item_paths.append(Path(report_file))
+
+        def on_item_double_click(event):
+            selection = lb.curselection()
+            if not selection:
+                return
+            idx = selection[0]
+            if idx < len(item_paths):
+                file_path = item_paths[idx]
+                if file_path.exists():
+                    self._open_path_in_shell(file_path)
+                else:
+                    messagebox.showwarning("提示", f"该文件已不存在或已被移动：\n{file_path}")
+
+        lb.bind("<Double-1>", on_item_double_click)
 
     def _open_history_folder(self) -> None:
         rec = self._get_selected_history_record()

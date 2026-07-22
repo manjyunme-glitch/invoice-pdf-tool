@@ -44,6 +44,13 @@ class StrategyTests(unittest.TestCase):
         )
         self.assertEqual(parser.parse_segment("dzfp-1001-测试公司-20240101.pdf", 2), "测试公司")
 
+    def test_segment_filename_parser_handles_bounds_and_negative_indices(self):
+        parser = SegmentFilenameParser(separator="_")
+        self.assertIsNone(parser.parse_segment("a_b_c.pdf", 5))
+        self.assertIsNone(parser.parse_segment("a_b_c.pdf", -5))
+        self.assertEqual(parser.parse_segment("a_b_c.pdf", -1), "c")
+        self.assertEqual(parser.parse_segment("a_b_c.pdf", -2), "b")
+
     def test_column_resolver_can_use_custom_exact_names(self):
         resolver = SmartInvoiceColumnResolver(
             exact_column_names=("票据号",),

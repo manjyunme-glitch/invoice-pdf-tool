@@ -317,8 +317,26 @@ class WorkbookAnalyzerService:
             recommended_sheet_name = ""
 
             for sheet_name in sheet_names:
+                row_count = 0
                 try:
-                    dataframe = pd.read_excel(excel_file, sheet_name=sheet_name, dtype=object)
+                    underlying_book = excel_file.book
+                    # openpyxl (xlsx)
+                    if hasattr(underlying_book, "__getitem__"):
+                        ws_meta = underlying_book[sheet_name]
+                        if hasattr(ws_meta, "max_row"):
+                            row_count = max(0, ws_meta.max_row - 1)
+                    # xlrd (xls)
+                    elif hasattr(underlying_book, "sheet_by_name"):
+                        ws_meta = underlying_book.sheet_by_name(sheet_name)
+                        if hasattr(ws_meta, "nrows"):
+                            row_count = max(0, ws_meta.nrows - 1)
+                except Exception:
+                    pass
+
+                try:
+                    dataframe = pd.read_excel(excel_file, sheet_name=sheet_name, dtype=object, nrows=100)
+                    if row_count <= 0:
+                        row_count = int(len(dataframe.index))
                 except Exception as exc:
                     profiles.append(
                         WorkbookSheetProfile(
@@ -349,7 +367,7 @@ class WorkbookAnalyzerService:
                 profiles.append(
                     WorkbookSheetProfile(
                         sheet_name=sheet_name,
-                        row_count=int(len(dataframe.index)),
+                        row_count=row_count,
                         column_count=len(columns),
                         columns=columns,
                         invoice_candidates=invoice_candidates,

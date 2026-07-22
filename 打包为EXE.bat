@@ -14,7 +14,7 @@ if not defined ENTRY_SCRIPT (
     exit /b 1
 )
 
-set "OUTPUT_NAME=invoice-pdf-tool-v5.2.2-windows-x64"
+set "OUTPUT_NAME=invoice-pdf-tool-v5.3.0-windows-x64"
 set "ICON_FILE=%~dp0assets\invoice-pdf-tool-icon.ico"
 
 if not exist "%ICON_FILE%" (
@@ -24,7 +24,7 @@ if not exist "%ICON_FILE%" (
 )
 
 echo ========================================
-echo   Invoice PDF Tool v5.2.2 - Build EXE
+echo   Invoice PDF Tool v5.3.0 - Build EXE
 echo ========================================
 echo.
 
@@ -93,4 +93,4 @@ echo ========================================
 echo.
 
 explorer dist
-pause
+rem pause

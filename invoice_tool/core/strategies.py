@@ -48,7 +48,11 @@ class SegmentFilenameParser:
 
     def parse_segment(self, filename: str, index: int) -> Optional[str]:
         parts = self.split_parts(filename)
-        if len(parts) > index:
+        if index >= 0 and index < len(parts):
+            value = parts[index].strip()
+            if value:
+                return value
+        elif index < 0 and abs(index) <= len(parts):
             value = parts[index].strip()
             if value:
                 return value
