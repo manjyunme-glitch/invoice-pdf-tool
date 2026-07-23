@@ -66,12 +66,30 @@ class InvoiceToolTests(unittest.TestCase):
                 exclude_dirs=[out],
             )
 
-            self.assertEqual(mapping, {"1001": "a_1001_A.pdf"})
+            self.assertEqual(mapping, {})
             self.assertEqual(len(conflicts), 1)
             self.assertEqual(stats["scanned"], 3)
             self.assertEqual(stats["valid_named"], 2)
             self.assertEqual(stats["invalid_named"], 1)
             self.assertEqual(stats["duplicates"], 1)
+
+    def test_invoice_number_normalization_preserves_integer_zeroes(self):
+        cases = {
+            "1E+3": "1000",
+            "00123E+2": "12300",
+            "1E+18": "1000000000000000000",
+            "1.2300E-2": "0.0123",
+            "001230": "001230",
+            "1002.0": "1002",
+        }
+        for raw, expected in cases.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(MODULE.InvoiceFilter.normalize_invoice_number(raw), expected)
+
+    def test_xls_without_xlrd_has_actionable_error(self):
+        with mock.patch("invoice_tool.core.filtering.XLRD_SUPPORT", False):
+            with self.assertRaisesRegex(ValueError, "xlrd"):
+                MODULE.InvoiceFilter.ensure_excel_support(Path("sample.xls"))
 
     @unittest.skipUnless(MODULE.PANDAS_SUPPORT, "pandas is required for Excel tests")
     def test_read_invoice_numbers_supports_sheet_and_aliases(self):
@@ -161,7 +179,7 @@ class InvoiceToolTests(unittest.TestCase):
             all_history=[{"type": "整理", "moves": [m1, m2], "count": 2}],
             _save_history=lambda: None,
             _refresh_history_tree=lambda: None,
-            _scan_files=lambda: None,
+            _scan_files=lambda **_kwargs: None,
         )
 
         with mock.patch.object(MODULE.messagebox, "askyesno", return_value=True), \

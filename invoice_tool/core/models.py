@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -57,11 +57,42 @@ class PdfScanStats:
 
 @dataclass
 class OrganizeTaskResult:
-    moves: List[Dict[str, str]] = field(default_factory=list)
+    moves: List[Dict[str, Any]] = field(default_factory=list)
     success_count: int = 0
     fail_count: int = 0
+    skip_count: int = 0
     elapsed: float = 0.0
     cancelled: bool = False
+    result_rows: List["OrganizeResultRow"] = field(default_factory=list)
+
+
+@dataclass
+class OrganizeResultRow:
+    status: str
+    filename: str
+    company: str = ""
+    detail: str = ""
+    source: str = ""
+    target: str = ""
+    retryable: bool = False
+
+
+@dataclass
+class OrganizePreviewRow:
+    relative_path: str
+    company: str
+    target: str
+    selectable: bool
+    already_organized: bool = False
+
+
+@dataclass
+class OrganizePreviewResult:
+    rows: List[OrganizePreviewRow] = field(default_factory=list)
+    total_count: int = 0
+    selectable_count: int = 0
+    organized_count: int = 0
+    invalid_count: int = 0
 
 
 @dataclass
@@ -89,8 +120,9 @@ class FilterTaskResult:
     found_count: int = 0
     skip_count: int = 0
     copy_fail_count: int = 0
+    target_conflict_count: int = 0
     not_found: List[str] = field(default_factory=list)
-    moves: List[Dict[str, str]] = field(default_factory=list)
+    moves: List[Dict[str, Any]] = field(default_factory=list)
     elapsed: float = 0.0
     cancelled: bool = False
     report_path: Optional[Path] = None

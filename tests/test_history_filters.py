@@ -57,6 +57,43 @@ class HistoryFilterTests(unittest.TestCase):
             [0],
         )
 
+    def test_filter_history_records_tolerates_corrupt_optional_lists(self):
+        records = [
+            {
+                "time": "损坏时间",
+                "folder": r"D:\legacy\broken",
+                "type": "整理",
+                "moves": None,
+                "report_files": None,
+            }
+        ]
+
+        self.assertEqual(
+            filter_history_records(records, type_filter="全部", date_filter="全部", keyword="legacy"),
+            [0],
+        )
+
+    def test_filter_history_records_searches_failure_results(self):
+        records = [
+            {
+                "time": "2026-04-08 09:00:00",
+                "folder": r"D:\pdf",
+                "type": "筛选",
+                "moves": [],
+                "result_rows": [
+                    {
+                        "status": "复制失败",
+                        "invoice_number": "10001234",
+                        "pdf_name": "invoice.pdf",
+                        "detail": "权限不足",
+                    }
+                ],
+            }
+        ]
+
+        self.assertEqual(filter_history_records(records, keyword="权限不足"), [0])
+        self.assertEqual(filter_history_records(records, keyword="10001234"), [0])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,14 +1,24 @@
 from __future__ import annotations
 
-import shutil
 import time
+from concurrent.futures import CancelledError
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..infra.logging_setup import logger
+from .file_safety import copy_file_exclusive, fingerprint_file, fingerprint_matches, resolve_contained_path
 from .filtering import InvoiceFilter
-from .models import FilterPreviewResult, FilterResultRow, FilterTaskResult, OrganizeTaskResult, PdfScanStats
+from .models import (
+    FilterPreviewResult,
+    FilterResultRow,
+    FilterTaskResult,
+    OrganizePreviewResult,
+    OrganizePreviewRow,
+    OrganizeResultRow,
+    OrganizeTaskResult,
+    PdfScanStats,
+)
 from .organizer import InvoiceOrganizer
 from .report import ReportExporter
 from .strategies import (
@@ -21,6 +31,9 @@ from .strategies import (
 ProgressCallback = Callable[[int, int], None]
 OutputCallback = Callable[[List[Tuple[str, str]]], None]
 CancelCallback = Callable[[], bool]
+OperationCallback = Callable[[Dict[str, Any]], None]
+ReportCallback = Callable[[Path], None]
+PauseWaiter = Callable[[], None]
 
 
 def _parse_conflict_message(conflict: str) -> Tuple[str, str]:
@@ -46,7 +59,71 @@ def _build_conflict_rows(conflicts: List[str]) -> List[FilterResultRow]:
     return rows
 
 
+def _conflict_invoice_numbers(conflicts: List[str]) -> set[str]:
+    return {
+        invoice_number
+        for invoice_number, _detail in map(_parse_conflict_message, conflicts)
+        if invoice_number
+    }
+
+
 class OrganizeService:
+    @staticmethod
+    def preview(
+        folder: Path,
+        company_index: int,
+        recursive: bool = False,
+        filename_parser: Optional[FilenameParserStrategy] = None,
+        cancel_requested: Optional[CancelCallback] = None,
+    ) -> OrganizePreviewResult:
+        pdf_files = InvoiceOrganizer.scan_pdf_files(
+            folder,
+            recursive,
+            cancel_requested=cancel_requested,
+        )
+        rows: List[OrganizePreviewRow] = []
+        selectable_count = 0
+        organized_count = 0
+        invalid_count = 0
+        for relative_file in pdf_files:
+            if cancel_requested and cancel_requested():
+                raise CancelledError("整理预览已取消")
+            relative_name = str(relative_file)
+            company, valid = InvoiceOrganizer.parse_filename(
+                relative_name,
+                company_index,
+                filename_parser=filename_parser,
+            )
+            already_organized = bool(
+                valid
+                and recursive
+                and InvoiceOrganizer.is_already_organized(relative_file, company)
+            )
+            selectable = valid and not already_organized
+            target = "已在目标目录" if already_organized else (company if valid else "-")
+            if selectable:
+                selectable_count += 1
+            elif already_organized:
+                organized_count += 1
+            else:
+                invalid_count += 1
+            rows.append(
+                OrganizePreviewRow(
+                    relative_path=relative_name,
+                    company=company,
+                    target=target,
+                    selectable=selectable,
+                    already_organized=already_organized,
+                )
+            )
+        return OrganizePreviewResult(
+            rows=rows,
+            total_count=len(rows),
+            selectable_count=selectable_count,
+            organized_count=organized_count,
+            invalid_count=invalid_count,
+        )
+
     @staticmethod
     def run(
         folder: Path,
@@ -54,18 +131,24 @@ class OrganizeService:
         preview_data: Dict[str, Dict],
         progress_callback: Optional[ProgressCallback] = None,
         cancel_requested: Optional[CancelCallback] = None,
+        operation_callback: Optional[OperationCallback] = None,
+        pause_waiter: Optional[PauseWaiter] = None,
     ) -> OrganizeTaskResult:
         started = time.time()
-        moves: List[Dict[str, str]] = []
+        moves: List[Dict[str, Any]] = []
         success_count = 0
         fail_count = 0
+        skip_count = 0
         cancelled = False
+        result_rows: List[OrganizeResultRow] = []
         total = len(files)
 
         logger.info(f"{'=' * 50}")
         logger.info(f"🚀 开始整理 {total} 个文件")
 
         for index, filename in enumerate(files):
+            if pause_waiter:
+                pause_waiter()
             if cancel_requested and cancel_requested():
                 logger.warning("⏹ 用户取消了操作")
                 cancelled = True
@@ -74,42 +157,133 @@ class OrganizeService:
             try:
                 preview = preview_data.get(filename)
                 if not preview or not preview["valid"]:
+                    skip_count += 1
+                    result_rows.append(
+                        OrganizeResultRow(
+                            status="已跳过",
+                            filename=filename,
+                            detail="预览记录不存在或已标记为不可处理",
+                        )
+                    )
                     continue
                 company = preview["company"]
-                source = folder / filename
-                target, renamed = InvoiceOrganizer.move_file(source, folder / company, filename)
+                raw_source = folder / filename
+                if raw_source.is_symlink():
+                    raise ValueError(f"不允许处理符号链接：{filename}")
+                source = resolve_contained_path(raw_source, folder)
+                target_dir = InvoiceOrganizer.resolve_company_target(folder, company)
+                if source.parent == target_dir:
+                    logger.info(f"⏭ 已在目标目录，跳过：{filename}")
+                    skip_count += 1
+                    result_rows.append(
+                        OrganizeResultRow(
+                            status="已跳过",
+                            filename=filename,
+                            company=company,
+                            detail="文件已经位于目标公司目录",
+                            source=str(source),
+                            target=str(target_dir),
+                        )
+                    )
+                    continue
+                fingerprint = fingerprint_file(source)
+                target, renamed = InvoiceOrganizer.move_file(
+                    source,
+                    target_dir,
+                    filename,
+                    root_dir=folder,
+                )
                 if renamed:
                     logger.warning(f"⚠️ 重命名：{renamed}")
-                moves.append(
-                    {
-                        "source": str(source),
-                        "target": str(target),
-                        "filename": filename,
-                        "company": company,
-                        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    }
-                )
+                move: Dict[str, Any] = {
+                    "source": str(source),
+                    "target": str(target),
+                    "filename": filename,
+                    "company": company,
+                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "operation_root": str(folder.resolve()),
+                    "fingerprint": fingerprint,
+                }
+                if operation_callback:
+                    try:
+                        operation_callback(dict(move))
+                    except Exception as exc:
+                        restored, restore_error = InvoiceOrganizer.rollback_single_move(move)
+                        if restored:
+                            raise OSError("恢复日志写入失败，当前文件已还原到原位置") from exc
+                        raise RuntimeError(
+                            f"恢复日志写入失败且当前文件无法自动还原：{restore_error}"
+                        ) from exc
+                moves.append(move)
                 logger.info(f"✅ {filename} → {company}/")
                 success_count += 1
-            except PermissionError:
+                result_rows.append(
+                    OrganizeResultRow(
+                        status="已移动",
+                        filename=filename,
+                        company=company,
+                        detail=(f"目标存在同名文件，已重命名为 {renamed}" if renamed else "已安全移动到目标公司目录"),
+                        source=str(source),
+                        target=str(target),
+                    )
+                )
+            except PermissionError as exc:
                 logger.error(f"❌ {filename}（权限不足）")
                 fail_count += 1
+                result_rows.append(
+                    OrganizeResultRow(
+                        status="失败",
+                        filename=filename,
+                        company=str((preview_data.get(filename) or {}).get("company", "")),
+                        detail=f"权限不足或文件正被占用：{exc}",
+                        source=str(folder / filename),
+                        retryable=True,
+                    )
+                )
             except OSError as exc:
                 logger.error(f"❌ {filename}（{exc}）")
                 fail_count += 1
+                result_rows.append(
+                    OrganizeResultRow(
+                        status="失败",
+                        filename=filename,
+                        company=str((preview_data.get(filename) or {}).get("company", "")),
+                        detail=f"文件系统操作失败：{exc}",
+                        source=str(folder / filename),
+                        retryable=True,
+                    )
+                )
+            except ValueError as exc:
+                logger.error(f"❌ {filename}（{exc}）")
+                fail_count += 1
+                result_rows.append(
+                    OrganizeResultRow(
+                        status="失败",
+                        filename=filename,
+                        company=str((preview_data.get(filename) or {}).get("company", "")),
+                        detail=str(exc),
+                        source=str(folder / filename),
+                        retryable=True,
+                    )
+                )
             finally:
                 if progress_callback:
                     progress_callback(index + 1, total)
 
         elapsed = time.time() - started
         logger.info(f"{'=' * 50}")
-        logger.info(f"📊 整理完成！成功: {success_count} | 失败: {fail_count} | 耗时: {elapsed:.1f}s")
+        logger.info(
+            f"📊 整理完成！成功: {success_count} | 跳过: {skip_count} | "
+            f"失败: {fail_count} | 耗时: {elapsed:.1f}s"
+        )
         return OrganizeTaskResult(
             moves=moves,
             success_count=success_count,
             fail_count=fail_count,
+            skip_count=skip_count,
             elapsed=elapsed,
             cancelled=cancelled,
+            result_rows=result_rows,
         )
 
 
@@ -131,6 +305,7 @@ class FilterService:
         exclude_dirs: Optional[List[Path]] = None,
         filename_parser: Optional[FilenameParserStrategy] = None,
         column_resolver: Optional[InvoiceColumnResolverStrategy] = None,
+        cancel_requested: Optional[CancelCallback] = None,
     ) -> FilterPreviewResult:
         excel_result = InvoiceFilter.read_invoice_records(
             excel_path,
@@ -143,6 +318,7 @@ class FilterService:
             company_exclude_keywords=company_exclude_keywords,
             extra_aliases=extra_aliases,
             column_resolver=column_resolver,
+            cancel_requested=cancel_requested,
         )
         invoice_numbers = excel_result["invoice_numbers"]
         column_name = excel_result["invoice_column_name"]
@@ -154,8 +330,17 @@ class FilterService:
             recursive,
             exclude_dirs=exclude_dirs,
             filename_parser=filename_parser,
+            cancel_requested=cancel_requested,
         )
+        if cancel_requested and cancel_requested():
+            raise CancelledError("筛选预览已取消")
         preview = InvoiceFilter.preview_match(invoice_numbers, mapping)
+        conflict_invoice_numbers = _conflict_invoice_numbers(conflicts)
+        preview_not_found = [
+            invoice_number
+            for invoice_number in preview["not_found"]
+            if invoice_number not in conflict_invoice_numbers
+        ]
         result_rows = [
             FilterResultRow(
                 status="可匹配",
@@ -172,7 +357,7 @@ class FilterService:
                 invoice_number=invoice_number,
                 detail="未找到对应PDF",
             )
-            for invoice_number in preview["not_found"]
+            for invoice_number in preview_not_found
         )
         result_rows.extend(_build_conflict_rows(conflicts))
         return FilterPreviewResult(
@@ -183,7 +368,7 @@ class FilterService:
             mapping=mapping,
             conflicts=conflicts,
             matched=preview["matched"],
-            not_found=preview["not_found"],
+            not_found=preview_not_found,
             pdf_stats=PdfScanStats(**stats_raw),
             company_column_name=excel_result["company_column_name"],
             filter_column_name=excel_result["filter_column_name"],
@@ -216,9 +401,11 @@ class FilterService:
         progress_callback: Optional[ProgressCallback] = None,
         output_callback: Optional[OutputCallback] = None,
         cancel_requested: Optional[CancelCallback] = None,
+        operation_callback: Optional[OperationCallback] = None,
+        report_callback: Optional[ReportCallback] = None,
+        pause_waiter: Optional[PauseWaiter] = None,
     ) -> FilterTaskResult:
         started = time.time()
-        output_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"{'=' * 50}")
         logger.info("🔍 开始筛选发票...")
@@ -267,12 +454,17 @@ class FilterService:
         )
         for conflict in conflicts:
             logger.warning(f"⚠️ {conflict}")
+        conflict_invoice_numbers = _conflict_invoice_numbers(conflicts)
+
+        # Delay the first write until all Excel/PDF inputs have been read successfully.
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         found_count = 0
         skip_count = 0
         copy_fail_count = 0
+        target_conflict_count = 0
         not_found: List[str] = []
-        moves: List[Dict[str, str]] = []
+        moves: List[Dict[str, Any]] = []
         buffer: List[Tuple[str, str]] = []
         cancelled = False
         result_rows: List[FilterResultRow] = []
@@ -282,6 +474,8 @@ class FilterService:
             progress_callback(0, total)
 
         for index, invoice_number in enumerate(invoice_numbers):
+            if pause_waiter:
+                pause_waiter()
             if cancel_requested and cancel_requested():
                 logger.warning("⏹ 取消筛选")
                 cancelled = True
@@ -291,19 +485,81 @@ class FilterService:
                 relative_pdf = mapping[invoice_number]
                 source = pdf_folder / relative_pdf
                 target = output_dir / Path(relative_pdf).name
-                if not target.exists():
-                    try:
-                        shutil.copy2(str(source), str(target))
+                try:
+                    source_fingerprint = fingerprint_file(source)
+                    if target.exists():
+                        if fingerprint_matches(target, source_fingerprint):
+                            buffer.append((f"⏭ {relative_pdf}（已存在且内容一致）\n", "skip"))
+                            result_rows.append(
+                                FilterResultRow(
+                                    status="已跳过",
+                                    invoice_number=invoice_number,
+                                    pdf_name=Path(relative_pdf).name,
+                                    detail=f"导出目录已有内容一致的文件：{target.name}",
+                                    path=str(target),
+                                )
+                            )
+                            skip_count += 1
+                        else:
+                            result_rows.append(
+                                FilterResultRow(
+                                    status="同名冲突",
+                                    invoice_number=invoice_number,
+                                    pdf_name=Path(relative_pdf).name,
+                                    detail=f"导出目录存在内容不同的同名文件，已保留原文件：{target.name}",
+                                    path=str(target),
+                                )
+                            )
+                            target_conflict_count += 1
+                    else:
+                        try:
+                            copy_file_exclusive(source, target, source_fingerprint)
+                        except FileExistsError:
+                            if fingerprint_matches(target, source_fingerprint):
+                                buffer.append((f"⏭ {relative_pdf}（并发创建且内容一致）\n", "skip"))
+                                result_rows.append(
+                                    FilterResultRow(
+                                        status="已跳过",
+                                        invoice_number=invoice_number,
+                                        pdf_name=Path(relative_pdf).name,
+                                        detail=f"导出目录已有内容一致的文件：{target.name}",
+                                        path=str(target),
+                                    )
+                                )
+                                skip_count += 1
+                                continue
+                            result_rows.append(
+                                FilterResultRow(
+                                    status="同名冲突",
+                                    invoice_number=invoice_number,
+                                    pdf_name=Path(relative_pdf).name,
+                                    detail=f"复制期间出现内容不同的同名文件，已保留原文件：{target.name}",
+                                    path=str(target),
+                                )
+                            )
+                            target_conflict_count += 1
+                            continue
+                        move: Dict[str, Any] = {
+                            "source": str(source),
+                            "target": str(target),
+                            "filename": Path(relative_pdf).name,
+                            "invoice_number": invoice_number,
+                            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "output_root": str(output_dir.resolve()),
+                            "fingerprint": source_fingerprint,
+                        }
+                        if operation_callback:
+                            try:
+                                operation_callback(dict(move))
+                            except Exception as exc:
+                                removed, remove_error = InvoiceOrganizer.delete_recorded_file(move)
+                                if removed:
+                                    raise OSError("恢复日志写入失败，当前复制文件已安全移除") from exc
+                                raise RuntimeError(
+                                    f"恢复日志写入失败且当前复制文件无法自动移除：{remove_error}"
+                                ) from exc
+                        moves.append(move)
                         buffer.append((f"✓ {relative_pdf}\n", "found"))
-                        moves.append(
-                            {
-                                "source": str(source),
-                                "target": str(target),
-                                "filename": Path(relative_pdf).name,
-                                "invoice_number": invoice_number,
-                                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            }
-                        )
                         result_rows.append(
                             FilterResultRow(
                                 status="已导出",
@@ -314,31 +570,19 @@ class FilterService:
                             )
                         )
                         found_count += 1
-                    except (PermissionError, OSError) as exc:
-                        buffer.append((f"❌ {relative_pdf}（{exc}）\n", "notfound"))
-                        result_rows.append(
-                            FilterResultRow(
-                                status="复制失败",
-                                invoice_number=invoice_number,
-                                pdf_name=Path(relative_pdf).name,
-                                detail=str(exc),
-                                path=str(source),
-                            )
-                        )
-                        copy_fail_count += 1
-                else:
-                    buffer.append((f"⏭ {relative_pdf}（已存在）\n", "skip"))
+                except (PermissionError, OSError, ValueError) as exc:
+                    buffer.append((f"❌ {relative_pdf}（{exc}）\n", "notfound"))
                     result_rows.append(
                         FilterResultRow(
-                            status="已跳过",
+                            status="复制失败",
                             invoice_number=invoice_number,
                             pdf_name=Path(relative_pdf).name,
-                            detail=f"导出目录已存在同名文件：{target.name}",
-                            path=str(target),
+                            detail=str(exc),
+                            path=str(source),
                         )
                     )
-                    skip_count += 1
-            else:
+                    copy_fail_count += 1
+            elif invoice_number not in conflict_invoice_numbers:
                 not_found.append(invoice_number)
                 result_rows.append(
                     FilterResultRow(
@@ -357,25 +601,54 @@ class FilterService:
         if buffer and output_callback:
             output_callback(buffer.copy())
 
+        result_rows.extend(_build_conflict_rows(conflicts))
+        report_result_rows = [
+            {
+                "status": row.status,
+                "invoice_number": row.invoice_number,
+                "pdf_name": row.pdf_name,
+                "detail": row.detail,
+                "path": row.path,
+            }
+            for row in result_rows
+        ]
         report_path = ReportExporter.export_filter_report(
             output_dir,
             moves,
             not_found,
             column_name,
             exporter=report_exporter,
+            result_rows=report_result_rows,
         )
+        if report_path and report_callback:
+            try:
+                report_callback(report_path)
+            except Exception as exc:
+                report_entry = {
+                    "target": str(report_path),
+                    "filename": report_path.name,
+                    "output_root": str(output_dir.resolve()),
+                    "fingerprint": fingerprint_file(report_path),
+                }
+                removed, remove_error = InvoiceOrganizer.delete_recorded_file(report_entry)
+                if removed:
+                    raise OSError("报告恢复日志写入失败，未登记的报告已安全移除") from exc
+                raise RuntimeError(
+                    f"报告恢复日志写入失败且报告无法自动移除：{remove_error}"
+                ) from exc
         elapsed = time.time() - started
 
         logger.info(f"{'=' * 50}")
         logger.info(
-            f"📊 筛选完成！匹配: {found_count} | 跳过: {skip_count} | 复制失败: {copy_fail_count} | "
+            f"📊 筛选完成！匹配: {found_count} | 跳过: {skip_count} | 同名冲突: {target_conflict_count} | "
+            f"复制失败: {copy_fail_count} | "
             f"未找到: {len(not_found)} | {elapsed:.1f}s"
         )
-        result_rows.extend(_build_conflict_rows(conflicts))
         return FilterTaskResult(
             found_count=found_count,
             skip_count=skip_count,
             copy_fail_count=copy_fail_count,
+            target_conflict_count=target_conflict_count,
             not_found=not_found,
             moves=moves,
             elapsed=elapsed,

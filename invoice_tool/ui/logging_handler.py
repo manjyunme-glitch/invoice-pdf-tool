@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 import logging
-import threading
 import tkinter as tk
 from typing import Callable, Dict
+
+
+UiDispatcher = Callable[[Callable[[], None]], None]
 
 
 class TkTextHandler(logging.Handler):
@@ -25,12 +27,15 @@ class TkTextHandler(logging.Handler):
         "===": "header",
     }
 
-    def __init__(self, text_widget: tk.Text, root: tk.Tk) -> None:
+    def __init__(self, text_widget: tk.Text, dispatch_ui: UiDispatcher) -> None:
         super().__init__()
         self.text_widget = text_widget
-        self.root = root
+        self.dispatch_ui = dispatch_ui
+        self._active = True
 
     def emit(self, record: logging.LogRecord) -> None:
+        if not self._active:
+            return
         msg = self.format(record)
         tag = self.LEVEL_TAG.get(record.levelno, "info")
         for prefix, mapped_tag in self.PREFIX_TAG.items():
@@ -39,25 +44,29 @@ class TkTextHandler(logging.Handler):
                 break
 
         def write() -> None:
+            if not self._active:
+                return
             self.text_widget.insert("end", msg + "\n", tag)
             self.text_widget.see("end")
 
-        if threading.current_thread() is threading.main_thread():
-            write()
-        else:
-            self.root.after(0, write)
+        self.dispatch_ui(write)
+
+    def close(self) -> None:
+        self._active = False
+        super().close()
 
 
 class RecentErrorHandler(logging.Handler):
     """提取 error/critical 日志并回传给 UI。"""
 
-    def __init__(self, root: tk.Tk, callback: Callable[[Dict[str, str]], None]) -> None:
+    def __init__(self, callback: Callable[[Dict[str, str]], None], dispatch_ui: UiDispatcher) -> None:
         super().__init__(level=logging.ERROR)
-        self.root = root
         self.callback = callback
+        self.dispatch_ui = dispatch_ui
+        self._active = True
 
     def emit(self, record: logging.LogRecord) -> None:
-        if record.levelno < logging.ERROR:
+        if not self._active or record.levelno < logging.ERROR:
             return
 
         formatted = self.format(record)
@@ -70,9 +79,11 @@ class RecentErrorHandler(logging.Handler):
         }
 
         def push() -> None:
-            self.callback(entry)
+            if self._active:
+                self.callback(entry)
 
-        if threading.current_thread() is threading.main_thread():
-            push()
-        else:
-            self.root.after(0, push)
+        self.dispatch_ui(push)
+
+    def close(self) -> None:
+        self._active = False
+        super().close()

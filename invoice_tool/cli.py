@@ -20,6 +20,7 @@ from .core import (
     list_rule_presets,
 )
 from .infra.paths import is_relative_to
+from .version import APP_VERSION
 
 
 def _get_parent_process_name() -> str:
@@ -179,6 +180,7 @@ def _organize_command(args: argparse.Namespace) -> int:
     pdf_files = InvoiceOrganizer.scan_pdf_files(folder, recursive=args.recursive)
     preview_data: Dict[str, Dict[str, Any]] = {}
     selected_files: List[str] = []
+    already_organized_count = 0
     requested_files = {item.strip() for item in (args.files or []) if item and item.strip()}
 
     for pdf_file in pdf_files:
@@ -188,16 +190,25 @@ def _organize_command(args: argparse.Namespace) -> int:
             company_index,
             filename_parser=filename_parser,
         )
+        already_organized = bool(
+            valid
+            and args.recursive
+            and InvoiceOrganizer.is_already_organized(pdf_file, company)
+        )
+        if already_organized:
+            already_organized_count += 1
+        selectable = valid and not already_organized
         preview_data[relative_name] = {
             "filename": relative_name,
             "company": company,
-            "target": company if valid else "-",
-            "valid": valid,
+            "target": "已在目标目录" if already_organized else (company if valid else "-"),
+            "valid": selectable,
+            "already_organized": already_organized,
         }
         if requested_files:
-            if relative_name in requested_files or Path(relative_name).name in requested_files:
+            if selectable and (relative_name in requested_files or Path(relative_name).name in requested_files):
                 selected_files.append(relative_name)
-        elif valid:
+        elif selectable:
             selected_files.append(relative_name)
 
     if not selected_files:
@@ -214,6 +225,7 @@ def _organize_command(args: argparse.Namespace) -> int:
             "scanned": total_count,
             "valid": valid_count,
             "selected": len(selected_files),
+            "already_organized": already_organized_count,
             "selected_files": selected_files[:50],
         }
         _print_payload(payload, args.json)
@@ -235,6 +247,7 @@ def _organize_command(args: argparse.Namespace) -> int:
         "selected": len(selected_files),
         "success_count": result.success_count,
         "fail_count": result.fail_count,
+        "skip_count": result.skip_count,
         "cancelled": result.cancelled,
         "elapsed_seconds": round(result.elapsed, 3),
         "moved_count": len(result.moves),
@@ -290,6 +303,7 @@ def _filter_command(args: argparse.Namespace) -> int:
             "not_found_count": len(preview.not_found),
             "pdf_scanned": preview.pdf_stats.scanned,
             "pdf_duplicates": preview.pdf_stats.duplicates,
+            "conflict_count": len(preview.conflicts),
         }
         _print_payload(payload, args.json)
         return 0
@@ -318,6 +332,8 @@ def _filter_command(args: argparse.Namespace) -> int:
         "found_count": result.found_count,
         "skip_count": result.skip_count,
         "copy_fail_count": result.copy_fail_count,
+        "target_conflict_count": result.target_conflict_count,
+        "duplicate_conflict_count": len(result.conflicts),
         "not_found_count": len(result.not_found),
         "cancelled": result.cancelled,
         "elapsed_seconds": round(result.elapsed, 3),
@@ -329,8 +345,8 @@ def _filter_command(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="发票处理工具v5.3.0",
-        description="发票工具 v5.3.0：支持 GUI 与命令行批处理。",
+        prog=f"发票处理工具{APP_VERSION}",
+        description=f"发票工具 {APP_VERSION}：支持 GUI 与命令行批处理。",
     )
     subparsers = parser.add_subparsers(dest="command")
 

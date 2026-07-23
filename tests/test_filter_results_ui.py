@@ -39,10 +39,11 @@ class FilterResultUiTests(unittest.TestCase):
             pdf_folder.mkdir()
 
             with pd.ExcelWriter(excel_path) as writer:
-                pd.DataFrame({"发票号码": ["1001", "1002"]}).to_excel(writer, sheet_name="Sheet1", index=False)
+                pd.DataFrame({"发票号码": ["1001", "1002", "1003"]}).to_excel(writer, sheet_name="Sheet1", index=False)
 
             (pdf_folder / "dzfp_1001_测试公司_20240101.pdf").write_text("pdf", encoding="utf-8")
             (pdf_folder / "dup_1001_另一家公司_20240102.pdf").write_text("pdf", encoding="utf-8")
+            (pdf_folder / "dzfp_1003_唯一公司_20240103.pdf").write_text("pdf", encoding="utf-8")
 
             preview = FilterService.preview(
                 excel_path=excel_path,

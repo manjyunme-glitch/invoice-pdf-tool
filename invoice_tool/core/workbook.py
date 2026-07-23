@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import CancelledError
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
 from ..infra.logging_setup import logger
 from ..runtime import PANDAS_SUPPORT, pd
@@ -294,9 +295,13 @@ class WorkbookAnalyzerService:
         extra_invoice_aliases: Optional[List[str]] = None,
         extra_company_aliases: Optional[List[str]] = None,
         sample_row_limit: int = 3,
+        cancel_requested: Optional[Callable[[], bool]] = None,
     ) -> WorkbookAnalysisResult:
         if not PANDAS_SUPPORT:
             raise ValueError("当前环境未安装 pandas，无法分析 Excel 工作簿")
+        if cancel_requested and cancel_requested():
+            raise CancelledError("工作簿分析已取消")
+        InvoiceFilter.ensure_excel_support(excel_path)
 
         try:
             excel_file = pd.ExcelFile(str(excel_path))
@@ -308,7 +313,7 @@ class WorkbookAnalyzerService:
             raise ValueError(f"Excel 读取失败：{exc}")
 
         try:
-            sheet_names = [str(name).strip() for name in excel_file.sheet_names]
+            sheet_names = [str(name) for name in excel_file.sheet_names]
             if not sheet_names:
                 raise ValueError("Excel 中未找到任何工作表")
 
@@ -317,6 +322,8 @@ class WorkbookAnalyzerService:
             recommended_sheet_name = ""
 
             for sheet_name in sheet_names:
+                if cancel_requested and cancel_requested():
+                    raise CancelledError("工作簿分析已取消")
                 row_count = 0
                 try:
                     underlying_book = excel_file.book
@@ -345,6 +352,8 @@ class WorkbookAnalyzerService:
                         )
                     )
                     continue
+                if cancel_requested and cancel_requested():
+                    raise CancelledError("工作簿分析已取消")
 
                 columns = [str(column).strip() for column in dataframe.columns.tolist()]
                 invoice_candidates = _rank_invoice_candidates(dataframe, extra_aliases=extra_invoice_aliases)

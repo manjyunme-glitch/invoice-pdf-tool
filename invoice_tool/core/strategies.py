@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Protocol, Sequence, Tuple
+from uuid import uuid4
 
 from ..infra.logging_setup import logger
 from ..runtime import (
@@ -15,6 +17,7 @@ from ..runtime import (
     Side,
     openpyxl,
 )
+from .file_safety import copy_file_exclusive, fingerprint_file
 
 
 DEFAULT_EXACT_COLUMN_NAMES: Tuple[str, ...] = (
@@ -118,8 +121,16 @@ class FilterReportExporterStrategy(Protocol):
         matched: List[Dict[str, str]],
         not_found: List[str],
         excel_col_name: str,
+        result_rows: Optional[List[Dict[str, str]]] = None,
     ) -> Optional[Path]:
         ...
+
+
+def _excel_safe_text(value: object) -> str:
+    text = str(value or "")
+    if text.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + text
+    return text
 
 
 @dataclass(frozen=True)
@@ -135,6 +146,7 @@ class OpenpyxlFilterReportExporter:
         matched: List[Dict[str, str]],
         not_found: List[str],
         excel_col_name: str,
+        result_rows: Optional[List[Dict[str, str]]] = None,
     ) -> Optional[Path]:
         if not OPENPYXL_SUPPORT:
             logger.warning("未安装 openpyxl，无法生成筛选报告")
@@ -167,12 +179,12 @@ class OpenpyxlFilterReportExporter:
             ws_success.cell(
                 row=row_index,
                 column=2,
-                value=item.get("invoice_number", item.get("invoice", "")),
+                value=_excel_safe_text(item.get("invoice_number", item.get("invoice", ""))),
             ).border = thin_border
             ws_success.cell(
                 row=row_index,
                 column=3,
-                value=item.get("filename", item.get("pdf", "")),
+                value=_excel_safe_text(item.get("filename", item.get("pdf", ""))),
             ).border = thin_border
             ws_success.cell(row=row_index, column=4, value=item.get("time", "")).border = thin_border
 
@@ -194,22 +206,51 @@ class OpenpyxlFilterReportExporter:
 
         for row_index, invoice_number in enumerate(not_found, 2):
             ws_missing.cell(row=row_index, column=1, value=row_index - 1).border = thin_border
-            ws_missing.cell(row=row_index, column=2, value=invoice_number).border = thin_border
+            ws_missing.cell(row=row_index, column=2, value=_excel_safe_text(invoice_number)).border = thin_border
             ws_missing.cell(row=row_index, column=3, value="未找到对应PDF").border = thin_border
 
         ws_missing.column_dimensions["A"].width = 8
         ws_missing.column_dimensions["B"].width = 28
         ws_missing.column_dimensions["C"].width = 22
 
+        details = list(result_rows or [])
+        ws_details = workbook.create_sheet("处理明细")
+        detail_headers = ["序号", "状态", "发票号码", "PDF文件名", "原因/说明", "文件位置"]
+        for column_index, header in enumerate(detail_headers, 1):
+            cell = ws_details.cell(row=1, column=column_index, value=header)
+            cell.font = header_font
+            cell.fill = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = thin_border
+        for row_index, item in enumerate(details, 2):
+            values = [
+                row_index - 1,
+                _excel_safe_text(item.get("status", "")),
+                _excel_safe_text(item.get("invoice_number", "")),
+                _excel_safe_text(item.get("pdf_name", "")),
+                _excel_safe_text(item.get("detail", "")),
+                _excel_safe_text(item.get("path", "")),
+            ]
+            for column_index, value in enumerate(values, 1):
+                ws_details.cell(row=row_index, column=column_index, value=value).border = thin_border
+        for column, width in zip("ABCDEF", (8, 16, 28, 48, 70, 70)):
+            ws_details.column_dimensions[column].width = width
+
         ws_summary = workbook.create_sheet(self.summary_sheet_name)
+        status_counts = Counter(str(item.get("status", "")) for item in details)
         summary_rows = [
             ("报告生成时间", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-            ("Excel发票号码列", excel_col_name),
-            ("总发票数", len(matched) + len(not_found)),
+            ("Excel发票号码列", _excel_safe_text(excel_col_name)),
+            ("总结果数", len(details) if details else len(matched) + len(not_found)),
             ("成功导出", len(matched)),
             ("未找到", len(not_found)),
             ("匹配率", f"{len(matched) / max(len(matched) + len(not_found), 1) * 100:.1f}%"),
         ]
+        summary_rows.extend(
+            (f"状态：{status}", count)
+            for status, count in sorted(status_counts.items())
+            if status
+        )
         for row_index, (key, value) in enumerate(summary_rows, 1):
             ws_summary.cell(row=row_index, column=1, value=key).font = Font(name="微软雅黑", bold=True)
             ws_summary.cell(row=row_index, column=2, value=value)
@@ -217,7 +258,21 @@ class OpenpyxlFilterReportExporter:
         ws_summary.column_dimensions["B"].width = 30
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_path = output_dir / f"{self.report_prefix}_{timestamp}.xlsx"
-        workbook.save(str(report_path))
-        logger.info(f"📊 筛选报告已导出：{report_path.name}")
-        return report_path
+        temporary_path = output_dir / f".{self.report_prefix}_{uuid4().hex}.tmp.xlsx"
+        try:
+            workbook.save(str(temporary_path))
+            report_fingerprint = fingerprint_file(temporary_path)
+            counter = 1
+            while True:
+                suffix = "" if counter == 1 else f"_{counter}"
+                report_path = output_dir / f"{self.report_prefix}_{timestamp}{suffix}.xlsx"
+                try:
+                    copy_file_exclusive(temporary_path, report_path, report_fingerprint)
+                    break
+                except FileExistsError:
+                    counter += 1
+            logger.info(f"📊 筛选报告已导出：{report_path.name}")
+            return report_path
+        finally:
+            workbook.close()
+            temporary_path.unlink(missing_ok=True)

@@ -53,3 +53,11 @@ except ImportError:
     Font = PatternFill = Alignment = Border = Side = None
     OPENPYXL_SUPPORT = False
 
+
+try:
+    import xlrd
+
+    XLRD_SUPPORT = True
+except ImportError:
+    xlrd = None
+    XLRD_SUPPORT = False

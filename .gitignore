@@ -13,6 +13,7 @@ env/
 build/
 dist/
 *.spec
+!invoice-pdf-tool-v6.spec
 
 # Test and cache
 .pytest_cache/

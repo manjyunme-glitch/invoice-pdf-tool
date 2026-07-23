@@ -3,28 +3,24 @@ setlocal EnableDelayedExpansion
 chcp 65001 >nul
 cd /d "%~dp0"
 
-set "ENTRY_SCRIPT="
-for %%F in (*v5.py) do (
-    set "ENTRY_SCRIPT=%%F"
-)
+set "ENTRY_SCRIPT=发票处理工具v6.py"
 
 echo ========================================
-echo   Invoice PDF Tool v5.3.0 - Install deps
+echo   Invoice PDF Tool v6.0.0 - Install deps
 echo ========================================
 echo.
 
 echo [1/2] Install core dependencies...
-python -m pip install pandas openpyxl
+python -m pip install -r requirements.txt
 echo.
 
-echo [2/2] Install optional UI dependencies...
-python -m pip install ttkbootstrap
-python -m pip install tkinterdnd2
+echo [2/2] Verify dependencies...
+python -m pip check
 
 echo.
 echo ========================================
 echo   Installation finished
-if defined ENTRY_SCRIPT (
+if exist "%ENTRY_SCRIPT%" (
     echo   Run: python !ENTRY_SCRIPT!
 ) else (
     echo   Run: python your-entry-script.py

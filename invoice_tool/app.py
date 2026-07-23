@@ -4,13 +4,18 @@ import sys
 import tkinter as tk
 from typing import List, Optional
 
+from .infra.logging_setup import logger
 from .runtime import DND_SUPPORT, MODERN_UI, TkinterDnD, ttkb
 from .ui import InvoiceToolApp
 
 
 def run_gui() -> None:
     if DND_SUPPORT:
-        root = TkinterDnD.Tk()
+        try:
+            root = TkinterDnD.Tk()
+        except Exception as exc:
+            logger.warning("拖放窗口初始化失败，已降级为原生 Tk：%s", exc)
+            root = tk.Tk()
     else:
         root = tk.Tk()
 

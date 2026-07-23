@@ -1,7 +1,9 @@
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +20,8 @@ from invoice_tool.core import (
     get_rule_preset,
     list_rule_presets,
 )
-from invoice_tool.runtime import PANDAS_SUPPORT, pd
+from invoice_tool.core.strategies import OpenpyxlFilterReportExporter
+from invoice_tool.runtime import OPENPYXL_SUPPORT, PANDAS_SUPPORT, openpyxl, pd
 
 
 class FakeReportExporter:
@@ -68,6 +71,76 @@ class StrategyTests(unittest.TestCase):
         supplier = get_rule_preset("supplier_archive")
         self.assertEqual(supplier.company_name_index, 1)
         self.assertEqual(supplier.invoice_number_index, 2)
+
+    @unittest.skipUnless(OPENPYXL_SUPPORT, "openpyxl is required for report tests")
+    def test_default_report_exporter_never_overwrites_same_second_report(self):
+        fixed_now = datetime(2026, 7, 22, 10, 30, 45)
+        exporter = OpenpyxlFilterReportExporter()
+        with tempfile.TemporaryDirectory() as td, mock.patch(
+            "invoice_tool.core.strategies.datetime"
+        ) as datetime_mock:
+            datetime_mock.now.return_value = fixed_now
+            output_dir = Path(td)
+            first = exporter.export_filter_report(output_dir, [], [], "发票号码")
+            second = exporter.export_filter_report(output_dir, [], [], "发票号码")
+
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            self.assertNotEqual(first, second)
+            self.assertEqual(first.name, "筛选结果报告_20260722_103045.xlsx")
+            self.assertEqual(second.name, "筛选结果报告_20260722_103045_2.xlsx")
+            self.assertTrue(first.exists())
+            self.assertTrue(second.exists())
+            self.assertFalse(list(output_dir.glob(".*.tmp.xlsx")))
+
+    @unittest.skipUnless(OPENPYXL_SUPPORT, "openpyxl is required for report tests")
+    def test_report_contains_all_status_details_and_escapes_formula_like_text(self):
+        exporter = OpenpyxlFilterReportExporter()
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td)
+            report = exporter.export_filter_report(
+                output_dir,
+                [{"invoice_number": "=1+1", "filename": "+danger.pdf", "time": "now"}],
+                ["@missing"],
+                "=发票列",
+                result_rows=[
+                    {
+                        "status": "复制失败",
+                        "invoice_number": "=1+1",
+                        "pdf_name": "+danger.pdf",
+                        "detail": "@原因",
+                        "path": "-危险路径",
+                    },
+                    {
+                        "status": "同名冲突",
+                        "invoice_number": "1002",
+                        "pdf_name": "normal.pdf",
+                        "detail": "已保留原文件",
+                        "path": "",
+                    },
+                ],
+            )
+
+            workbook = openpyxl.load_workbook(report, data_only=False)
+            try:
+                self.assertIn("处理明细", workbook.sheetnames)
+                self.assertEqual(workbook["已成功导出"]["B2"].value, "'=1+1")
+                self.assertEqual(workbook["已成功导出"]["C2"].value, "'+danger.pdf")
+                self.assertEqual(workbook["缺失清单"]["B2"].value, "'@missing")
+                details = workbook["处理明细"]
+                self.assertEqual(details["C2"].value, "'=1+1")
+                self.assertEqual(details["D2"].value, "'+danger.pdf")
+                self.assertEqual(details["E2"].value, "'@原因")
+                self.assertEqual(details["F2"].value, "'-危险路径")
+                summary_values = {
+                    workbook["汇总"].cell(row=row, column=1).value:
+                    workbook["汇总"].cell(row=row, column=2).value
+                    for row in range(1, workbook["汇总"].max_row + 1)
+                }
+                self.assertEqual(summary_values["状态：复制失败"], 1)
+                self.assertEqual(summary_values["状态：同名冲突"], 1)
+            finally:
+                workbook.close()
 
     @unittest.skipUnless(PANDAS_SUPPORT, "pandas is required for strategy service tests")
     def test_filter_service_accepts_injected_strategies_and_report_exporter(self):

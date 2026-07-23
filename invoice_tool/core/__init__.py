@@ -1,9 +1,13 @@
 from .filtering import InvoiceFilter
+from .file_safety import UnsafeFileOperationError, fingerprint_file, fingerprint_matches
 from .models import (
     FilterPreviewResult,
     FilterResultRow,
     FilterTaskResult,
     OrganizeTaskResult,
+    OrganizePreviewResult,
+    OrganizePreviewRow,
+    OrganizeResultRow,
     PdfScanStats,
     SheetColumnCandidate,
     WorkbookAnalysisResult,
@@ -40,6 +44,9 @@ __all__ = [
     "InvoiceOrganizer",
     "OpenpyxlFilterReportExporter",
     "OrganizeService",
+    "OrganizePreviewResult",
+    "OrganizePreviewRow",
+    "OrganizeResultRow",
     "OrganizeTaskResult",
     "PdfScanStats",
     "RulePreset",
@@ -50,6 +57,9 @@ __all__ = [
     "WorkbookAnalysisResult",
     "WorkbookAnalyzerService",
     "WorkbookSheetProfile",
+    "UnsafeFileOperationError",
+    "fingerprint_file",
+    "fingerprint_matches",
     "get_rule_preset",
     "list_rule_presets",
 ]

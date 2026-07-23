@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""v5.3.0 GUI 入口：独立于旧版本项目的当前启动文件。"""
+"""兼容旧文件名的 GUI 入口；实际版本由 invoice_tool.version 统一提供。"""
 
 from tkinter import messagebox
 
