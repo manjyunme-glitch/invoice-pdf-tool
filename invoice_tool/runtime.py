@@ -27,6 +27,30 @@ except ImportError:
 try:
     import ttkbootstrap as ttkb
 
+    # The application owns the complete palette for legacy Tk widgets.
+    # ttkbootstrap patches their constructors and otherwise replaces explicit
+    # colors (for example, the dark workspace sidebar) with its theme defaults.
+    # Keep ttkbootstrap for ttk controls while opting legacy widgets out of that
+    # automatic recoloring by default.
+    from ttkbootstrap.widgets import TK_WIDGETS
+
+    for _tk_widget in TK_WIDGETS:
+        _original_init = _tk_widget.__init__
+        if getattr(_original_init, "_invoice_tool_preserves_tk_colors", False):
+            continue
+
+        def _preserve_explicit_tk_colors(
+            self,
+            *args,
+            __original_init=_original_init,
+            **kwargs,
+        ):
+            kwargs.setdefault("autostyle", False)
+            __original_init(self, *args, **kwargs)
+
+        _preserve_explicit_tk_colors._invoice_tool_preserves_tk_colors = True
+        _tk_widget.__init__ = _preserve_explicit_tk_colors
+
     MODERN_UI = True
 except ImportError:
     ttkb = None

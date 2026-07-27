@@ -142,14 +142,16 @@ UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
         "button_bg": "#E8EEF5",
         "button_fg": "#17324A",
         "button_hover": "#D9E3EE",
+        "button_disabled_fg": "#475569",
+        "button_disabled_accent_fg": "#F8FAFC",
         "primary": "#0F7B78",
         "primary_hover": "#0B6462",
-        "success": "#1F8F65",
-        "success_hover": "#177552",
-        "warning": "#D48A28",
-        "warning_hover": "#B97518",
-        "danger": "#D14C5D",
-        "danger_hover": "#B93A4E",
+        "success": "#167653",
+        "success_hover": "#125E43",
+        "warning": "#8A5A12",
+        "warning_hover": "#70460D",
+        "danger": "#B83C4F",
+        "danger_hover": "#9F2F42",
         "secondary": "#5E7388",
         "secondary_hover": "#4D6277",
         "log_bg": "#0F172A",
@@ -209,14 +211,16 @@ UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
         "button_bg": "#1A2A3D",
         "button_fg": "#E2E8F0",
         "button_hover": "#24364A",
-        "primary": "#13B5A8",
-        "primary_hover": "#0D9488",
-        "success": "#1FA971",
-        "success_hover": "#19895C",
-        "warning": "#C28724",
-        "warning_hover": "#A56E17",
-        "danger": "#CE506C",
-        "danger_hover": "#B73D57",
+        "button_disabled_fg": "#CBD5E1",
+        "button_disabled_accent_fg": "#F8FAFC",
+        "primary": "#0F766E",
+        "primary_hover": "#115E59",
+        "success": "#167653",
+        "success_hover": "#125E43",
+        "warning": "#8A5A12",
+        "warning_hover": "#70460D",
+        "danger": "#B83C4F",
+        "danger_hover": "#9F2F42",
         "secondary": "#56687E",
         "secondary_hover": "#64778E",
         "log_bg": "#020617",
@@ -816,6 +820,7 @@ class InvoiceToolApp:
                 fg=palette["button_fg"],
                 activebackground=palette["button_hover"],
                 activeforeground=palette["button_fg"],
+                disabledforeground=palette["button_disabled_fg"],
                 relief="flat",
                 bd=0,
                 highlightthickness=0,
@@ -1095,11 +1100,17 @@ class InvoiceToolApp:
 
     def _style_action_button(self, button: tk.Button, role: str) -> None:
         normal_bg, hover_bg, fg = self._button_colors(role)
+        disabled_fg = (
+            self.palette["button_disabled_fg"]
+            if role == "neutral"
+            else self.palette["button_disabled_accent_fg"]
+        )
         button.config(
             bg=normal_bg,
             fg=fg,
             activebackground=hover_bg,
             activeforeground=fg,
+            disabledforeground=disabled_fg,
             relief="flat",
             bd=0,
             highlightthickness=0,
@@ -1500,7 +1511,7 @@ class InvoiceToolApp:
         tk.Label(
             text_column,
             text=description,
-            font=("微软雅黑", 8),
+            font=("微软雅黑", 9),
             bg=self.palette["root_bg"],
             fg=self.palette["muted"],
             anchor="w",
@@ -1885,23 +1896,43 @@ class InvoiceToolApp:
 
     def _scroll_filter_workflow_to(self, stage_key: str) -> str:
         focus_targets = {
+            "input": getattr(self, "excel_path_entry", None),
+            "rules": getattr(self, "workbook_analysis_toggle_btn", None),
             "preview": getattr(self, "filter_preview_btn", None),
             "execute": getattr(self, "filter_run_btn", None),
+            "results": getattr(self, "filter_result_tree", None),
         }
-        focus_target = focus_targets.get(stage_key)
-        if focus_target is not None:
-            focus_target.focus_set()
-            return "break"
-
         target = getattr(self, "filter_workflow_sections", {}).get(stage_key)
+        if target is None and stage_key in {"preview", "execute"}:
+            # Preview and execution are launched from the fixed action bar; their
+            # output is rendered in the results section, so that is their scroll
+            # destination while keyboard focus moves to the relevant action.
+            target = getattr(self, "filter_workflow_sections", {}).get("results")
         canvas = getattr(self, "filter_scroll_canvas", None)
         panel = getattr(self, "filter_scroll_panel", None)
-        if target is None or canvas is None or panel is None:
-            return "break"
-        panel.update_idletasks()
-        scrollable_height = max(panel.winfo_reqheight() - canvas.winfo_height(), 1)
-        target_offset = max(target.winfo_y() - 8, 0)
-        canvas.yview_moveto(min(target_offset / scrollable_height, 1.0))
+        if target is not None and canvas is not None and panel is not None:
+            panel.update_idletasks()
+            canvas.update_idletasks()
+            scroll_region = canvas.bbox("all")
+            if scroll_region is not None:
+                content_top = scroll_region[1]
+                content_height = max(scroll_region[3] - content_top, 1)
+                viewport_height = max(canvas.winfo_height(), 1)
+                max_offset = max(content_height - viewport_height, 0)
+                target_offset = min(
+                    max(target.winfo_y() - content_top - 8, 0),
+                    max_offset,
+                )
+                # Canvas.yview_moveto expects a fraction of the complete
+                # scrollregion, not a fraction of only the scrollable remainder.
+                canvas.yview_moveto(target_offset / content_height)
+
+        focus_target = focus_targets.get(stage_key)
+        if focus_target is not None:
+            try:
+                focus_target.focus_set()
+            except tk.TclError:
+                pass
         return "break"
 
     def _build_filter_tab(self) -> None:
@@ -2030,7 +2061,7 @@ class InvoiceToolApp:
         tk.Label(
             fbtn,
             textvariable=self.filter_workflow_status_text,
-            font=("微软雅黑", 8),
+            font=("微软雅黑", 9),
             bg=self.palette["surface"],
             fg=self.palette["muted"],
             anchor="w",

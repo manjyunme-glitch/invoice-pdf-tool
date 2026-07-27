@@ -293,7 +293,7 @@ class InvoiceToolApp(V521InvoiceToolApp):
         tk.Label(
             title_column,
             textvariable=self.workspace_page_subtitle,
-            font=("微软雅黑", 8),
+            font=("微软雅黑", 9),
             bg=palette["surface"],
             fg=palette["muted"],
             anchor="w",
@@ -301,7 +301,7 @@ class InvoiceToolApp(V521InvoiceToolApp):
         tk.Label(
             title_column,
             textvariable=self.workspace_workflow,
-            font=("微软雅黑", 8, "bold"),
+            font=("微软雅黑", 9, "bold"),
             bg=palette["surface"],
             fg=palette["primary"],
             anchor="w",
@@ -312,7 +312,7 @@ class InvoiceToolApp(V521InvoiceToolApp):
         self.workspace_page_counter = tk.Label(
             actions,
             text="",
-            font=("Segoe UI", 8, "bold"),
+            font=("Segoe UI", 9, "bold"),
             bg=palette["surface_soft"],
             fg=palette["muted"],
             padx=self._scaled(9),

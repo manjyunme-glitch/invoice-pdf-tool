@@ -3,6 +3,7 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 import unittest
 import zipfile
 from concurrent.futures import CancelledError
@@ -74,6 +75,24 @@ class UiLayoutTests(unittest.TestCase):
             current = current.master
         return y
 
+    @staticmethod
+    def _contrast_ratio(first: str, second: str) -> float:
+        def luminance(color: str) -> float:
+            channels = [int(color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+            linear = [
+                value / 12.92
+                if value <= 0.04045
+                else ((value + 0.055) / 1.055) ** 2.4
+                for value in channels
+            ]
+            return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+        lighter, darker = sorted(
+            (luminance(first), luminance(second)),
+            reverse=True,
+        )
+        return (lighter + 0.05) / (darker + 0.05)
+
     def test_filter_result_tree_uses_grid_scrollbars(self):
         root = tk.Tk()
         root.withdraw()
@@ -118,6 +137,130 @@ class UiLayoutTests(unittest.TestCase):
             self.assertTrue(app.filter_workflow_cards["input"].cget("text").startswith("✓"))
             self.assertEqual(app.filter_workflow_cards["execute"].cget("bg"), app.palette["primary"])
             self.assertEqual(app._scroll_filter_workflow_to("preview"), "break")
+        finally:
+            app._on_closing()
+
+    def test_filter_workflow_navigation_aligns_each_scroll_destination(self):
+        root = tk.Tk()
+        root.withdraw()
+        app = self._create_app(root)
+        try:
+            root.update_idletasks()
+            canvas = app.filter_scroll_canvas
+            panel = app.filter_scroll_panel
+            scroll_region = canvas.bbox("all")
+            self.assertIsNotNone(scroll_region)
+            assert scroll_region is not None
+            content_top = scroll_region[1]
+            content_height = scroll_region[3] - content_top
+            max_offset = max(content_height - canvas.winfo_height(), 0)
+
+            expected_sections = {
+                "input": "input",
+                "rules": "rules",
+                "preview": "results",
+                "execute": "results",
+                "results": "results",
+            }
+            for stage_key, section_key in expected_sections.items():
+                canvas.yview_moveto(0)
+                app._scroll_filter_workflow_to(stage_key)
+                root.update_idletasks()
+                section = app.filter_workflow_sections[section_key]
+                expected_offset = min(
+                    max(section.winfo_y() - content_top - 8, 0),
+                    max_offset,
+                )
+                actual_offset = canvas.yview()[0] * content_height
+                self.assertAlmostEqual(
+                    actual_offset,
+                    expected_offset,
+                    delta=2,
+                    msg=f"{stage_key} 没有滚动到 {section_key} 的正确位置",
+                )
+        finally:
+            app._on_closing()
+
+    def test_disabled_action_buttons_remain_readable_and_primary_type_is_preserved(self):
+        root = tk.Tk()
+        root.withdraw()
+        app = self._create_app(root)
+        try:
+            for theme_id in ("day", "night"):
+                if app.ui_theme.get() != theme_id:
+                    app._set_ui_theme(theme_id)
+                for role in (
+                    "primary",
+                    "success",
+                    "warning",
+                    "danger",
+                    "secondary",
+                    "neutral",
+                ):
+                    normal_bg, hover_bg, foreground = app._button_colors(role)
+                    self.assertGreaterEqual(
+                        self._contrast_ratio(normal_bg, foreground),
+                        4.5,
+                    )
+                    self.assertGreaterEqual(
+                        self._contrast_ratio(hover_bg, foreground),
+                        4.5,
+                    )
+                for button in (
+                    app.filter_retry_btn,
+                    app.pause_filter_btn,
+                    app.cancel_flt_btn,
+                ):
+                    disabled_bg = str(button.cget("bg"))
+                    disabled_fg = str(button.cget("disabledforeground"))
+                    self.assertIn(
+                        disabled_fg,
+                        {
+                            app.palette["button_disabled_fg"],
+                            app.palette["button_disabled_accent_fg"],
+                        },
+                    )
+                    self.assertGreaterEqual(
+                        self._contrast_ratio(disabled_bg, disabled_fg),
+                        4.5,
+                    )
+
+            primary_font = tkfont.Font(root=root, font=app.filter_run_btn.cget("font"))
+            self.assertGreaterEqual(abs(int(primary_font.cget("size"))), 12)
+            self.assertEqual(primary_font.cget("weight"), "bold")
+        finally:
+            app._on_closing()
+
+    def test_workspace_palette_is_not_overwritten_by_modern_ttk_theme(self):
+        root = tk.Tk()
+        root.withdraw()
+        app = self._create_app(root)
+        try:
+            for theme_id in ("day", "night"):
+                if app.ui_theme.get() != theme_id:
+                    app._set_ui_theme(theme_id)
+                self.assertEqual(
+                    str(app.workspace_sidebar.cget("bg")),
+                    app.palette["hero_card_bg"],
+                )
+                self.assertEqual(
+                    str(app.workspace_main.cget("bg")),
+                    app.palette["root_bg"],
+                )
+                brand = app.workspace_sidebar.winfo_children()[0]
+                self.assertEqual(str(brand.cget("bg")), app.palette["hero_card_bg"])
+                brand_labels = [
+                    child
+                    for child in brand.winfo_children()
+                    if isinstance(child, tk.Label)
+                ]
+                self.assertTrue(brand_labels)
+                self.assertTrue(
+                    all(
+                        str(label.cget("bg")) == app.palette["hero_card_bg"]
+                        for label in brand_labels
+                    )
+                )
         finally:
             app._on_closing()
 

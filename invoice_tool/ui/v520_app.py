@@ -175,6 +175,7 @@ class InvoiceToolApp(BaseInvoiceToolApp):
                 fg=palette["button_fg"],
                 activebackground=palette["button_hover"],
                 activeforeground=palette["button_fg"],
+                disabledforeground=palette["button_disabled_fg"],
                 relief="flat",
                 bd=0,
                 highlightthickness=0,
@@ -186,10 +187,8 @@ class InvoiceToolApp(BaseInvoiceToolApp):
 
     def _style_action_button(self, button: tk.Button, role: str) -> None:
         super()._style_action_button(button, role)
-        emphasis_roles = {"primary", "success", "warning", "danger"}
         button.configure(
             cursor="hand2",
-            font=("微软雅黑", 9, "bold" if role in emphasis_roles else "normal"),
             padx=12,
             pady=7,
         )
@@ -248,11 +247,14 @@ class InvoiceToolApp(BaseInvoiceToolApp):
             "start_btn": ("开始整理", "success"),
             "undo_btn": ("撤销上次", "warning"),
             "undo_all_btn": ("撤销全部", "danger"),
-            "cancel_org_btn": ("取消", "secondary"),
+            "cancel_org_btn": ("取消", "danger"),
             "help_btn": ("查看使用说明", "neutral"),
             "filter_preview_btn": ("预览匹配", "secondary"),
             "filter_run_btn": ("开始筛选并导出", "primary"),
-            "cancel_flt_btn": ("取消", "secondary"),
+            "filter_retry_btn": ("重试失败", "secondary"),
+            "pause_filter_btn": ("暂停", "neutral"),
+            "open_output_btn": ("打开导出文件夹", "neutral"),
+            "cancel_flt_btn": ("取消", "danger"),
             "copy_missing_btn": ("复制未匹配发票号", "neutral"),
             "open_result_btn": ("打开选中结果", "neutral"),
             "output_folder_browse_btn": ("浏览", "neutral"),
