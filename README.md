@@ -1,5 +1,9 @@
 # 发票处理工具箱 v6.1.1
 
+<p align="center">
+  <img src="assets/invoice-pdf-tool-icon.png" width="144" alt="发票处理工具箱图标">
+</p>
+
 一个面向 Windows 的桌面发票工具，用来解决两类高频工作：
 
 - 从复杂 Excel 工作簿中筛选需要的发票号码，再批量匹配并导出本地 PDF 发票
