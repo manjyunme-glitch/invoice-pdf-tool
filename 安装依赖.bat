@@ -6,7 +6,7 @@ cd /d "%~dp0"
 set "ENTRY_SCRIPT=发票处理工具v6.py"
 
 echo ========================================
-echo   Invoice PDF Tool v6.0.0 - Install deps
+echo   Invoice PDF Tool v6.1.0 - Install deps
 echo ========================================
 echo.
 

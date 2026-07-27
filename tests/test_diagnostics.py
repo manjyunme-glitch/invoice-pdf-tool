@@ -34,7 +34,7 @@ class DiagnosticsTests(unittest.TestCase):
             log_path = root / "app.log"
             log_path.write_text("error", encoding="utf-8")
             snapshot = build_diagnostic_snapshot(
-                app_version="v6.0.0",
+                app_version="v6.1.0",
                 capabilities={"pandas": True, "dnd": False},
                 config_path=root / "config.json",
                 history_path=root / "history.json",
@@ -59,7 +59,7 @@ class DiagnosticsTests(unittest.TestCase):
                 encoding="utf-8",
             )
             target = root / "diagnostics.zip"
-            snapshot = {"application": {"version": "v6.0.0"}}
+            snapshot = {"application": {"version": "v6.1.0"}}
 
             create_diagnostic_bundle(target, snapshot, log_path=log_path, max_log_lines=1)
 

@@ -863,9 +863,9 @@ class UiLayoutTests(unittest.TestCase):
             with patch("invoice_tool.ui.app.messagebox.showinfo") as showinfo:
                 app._show_release_notes()
             title, detail = showinfo.call_args.args
-            self.assertIn("v6.0.0", title)
-            self.assertIn("文件移动", detail)
-            self.assertIn("诊断包", detail)
+            self.assertIn("v6.1.0", title)
+            self.assertIn("步骤导航", detail)
+            self.assertIn("按钮", detail)
         finally:
             app._on_closing()
 

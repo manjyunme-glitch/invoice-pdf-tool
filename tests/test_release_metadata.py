@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ReleaseMetadataTests(unittest.TestCase):
     def test_version_has_one_python_source_of_truth(self):
-        self.assertEqual(__version__, "6.0.0")
-        self.assertEqual(APP_VERSION, "v6.0.0")
-        self.assertEqual(WINDOWS_EXE_BASENAME, "invoice-pdf-tool-v6.0.0-windows-x64")
+        self.assertEqual(__version__, "6.1.0")
+        self.assertEqual(APP_VERSION, "v6.1.0")
+        self.assertEqual(WINDOWS_EXE_BASENAME, "invoice-pdf-tool-v6.1.0-windows-x64")
         parser = build_parser()
         self.assertIn(APP_VERSION, parser.prog)
         self.assertIn(APP_VERSION, parser.description or "")
@@ -30,7 +30,7 @@ class ReleaseMetadataTests(unittest.TestCase):
             "version_info.txt",
         ):
             text = (ROOT / relative_path).read_text(encoding="utf-8")
-            self.assertIn("6.0.0", text, relative_path)
+            self.assertIn("6.1.0", text, relative_path)
             self.assertIn(expected_name, text, relative_path)
 
     def test_v6_entry_is_importable_without_starting_gui(self):

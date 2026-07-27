@@ -1,4 +1,4 @@
-# 发票处理工具箱 v6.0.0
+# 发票处理工具箱 v6.1.0
 
 一个面向 Windows 的桌面发票工具，用来解决两类高频工作：
 
@@ -143,9 +143,21 @@ F:\工作文档\2025年8月\8月进项
 - 底部日志抽屉支持查看、复制、导出和清空，设置页可导出完整脱敏诊断包
 - 切换白天 / 黑夜主题时保留当前筛选或整理步骤和结果上下文
 - 切换 Sheet 时自动重置条件筛选，避免误带上一个工作表的过滤条件
+- v6.1.0 修复主题配色覆盖、禁用按钮可读性和步骤导航定位偏移
 - v6.0.0 文件安全、任务恢复、连续工作流和发布工程升级
 - v5.3.0 界面美化与性能优化，提升用户体验
 - v5.2.2 筛选页首屏展示布局精简和视觉主题微调
+
+## v6.1.0 重点更新
+
+- 修复 `ttkbootstrap` 覆盖应用自定义颜色的问题，恢复深色任务侧栏和完整视觉层级
+- 修复输入、规则、预览、执行和结果步骤导航的滚动偏移，目标标题稳定停在视口顶部
+- 提高白天与黑夜主题下普通、悬停和禁用按钮的文字对比度
+- 恢复主操作按钮的 12 号粗体层级，优化页面副标题、流程说明和底部状态文字
+- 为取消、暂停、重试、打开目录等操作重新梳理视觉权重
+- 新增主题覆盖、按钮可读性、字号层级和步骤定位回归测试
+
+完整变化见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## v6.0.0 重点更新
 
@@ -246,7 +258,7 @@ F:\工作文档\2025年8月\8月进项
 
 ### 方式一：直接使用 EXE
 
-1. 到 GitHub `Releases` 页面下载最新 Windows EXE：`invoice-pdf-tool-v6.0.0-windows-x64.exe`
+1. 到 GitHub `Releases` 页面下载最新 Windows EXE：`invoice-pdf-tool-v6.1.0-windows-x64.exe`
 2. 双击运行
 3. 进入“筛选”或“整理”页开始操作
 
@@ -349,8 +361,8 @@ python -m pip install -r requirements-build.txt
 默认会生成：
 
 ```text
-dist\invoice-pdf-tool-v6.0.0-windows-x64.exe
-dist\invoice-pdf-tool-v6.0.0-windows-x64.sha256.txt
+dist\invoice-pdf-tool-v6.1.0-windows-x64.exe
+dist\invoice-pdf-tool-v6.1.0-windows-x64.sha256.txt
 ```
 
 ## 运行测试

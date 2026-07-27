@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-发票处理工具箱 v6.0.0
+发票处理工具箱 v6.1.0
 
 当前版本聚焦于：
 - 发票整理
@@ -260,7 +260,7 @@ UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
 # ==================== GUI 主应用 ====================
 
 class InvoiceToolApp:
-    """发票处理工具箱 v6.0.0"""
+    """发票处理工具箱 v6.1.0"""
 
     def __init__(
         self,
