@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(6, 1, 0, 0),
-    prodvers=(6, 1, 0, 0),
+    filevers=(6, 1, 1, 0),
+    prodvers=(6, 1, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -16,12 +16,12 @@ VSVersionInfo(
         [
           StringStruct('CompanyName', 'Invoice PDF Tool'),
           StringStruct('FileDescription', '发票处理工具箱'),
-          StringStruct('FileVersion', '6.1.0'),
+          StringStruct('FileVersion', '6.1.1'),
           StringStruct('InternalName', 'invoice-pdf-tool'),
           StringStruct('LegalCopyright', 'Copyright © 2026'),
-          StringStruct('OriginalFilename', 'invoice-pdf-tool-v6.1.0-windows-x64.exe'),
+          StringStruct('OriginalFilename', 'invoice-pdf-tool-v6.1.1-windows-x64.exe'),
           StringStruct('ProductName', '发票处理工具箱'),
-          StringStruct('ProductVersion', '6.1.0')
+          StringStruct('ProductVersion', '6.1.1')
         ]
       )
     ]),

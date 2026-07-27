@@ -25,6 +25,10 @@ class InvoiceToolApp(BaseInvoiceToolApp):
         except Exception:
             pass
 
+        style.configure(
+            "TFrame",
+            background=palette["surface"],
+        )
         style.configure("TNotebook", background=palette["root_bg"], borderwidth=0, tabmargins=[0, 8, 0, 0])
         style.configure(
             "TNotebook.Tab",
@@ -79,7 +83,10 @@ class InvoiceToolApp(BaseInvoiceToolApp):
         style.map(
             "TCombobox",
             fieldbackground=[("readonly", palette["entry_bg"])],
+            background=[("readonly", palette["entry_bg"])],
             foreground=[("readonly", palette["entry_fg"])],
+            selectbackground=[("readonly", palette["entry_bg"])],
+            selectforeground=[("readonly", palette["entry_fg"])],
         )
 
         for orient in ("Vertical", "Horizontal"):

@@ -264,6 +264,69 @@ class UiLayoutTests(unittest.TestCase):
         finally:
             app._on_closing()
 
+    def test_night_theme_recolors_default_label_frames_and_keeps_text_readable(self):
+        root = tk.Tk()
+        root.withdraw()
+        app = self._create_app(root)
+        try:
+            app._set_ui_theme("night")
+            root.update_idletasks()
+
+            self.assertIn("Labelframe", app._default_widget_colors)
+            self.assertEqual(
+                str(app.file_path_frame.cget("bg")),
+                app.palette["surface_raised"],
+            )
+
+            default_label_frames = []
+
+            def collect(widget):
+                if widget.winfo_class() == "Labelframe":
+                    default_label_frames.append(widget)
+                for child in widget.winfo_children():
+                    collect(child)
+
+            for page in app._workspace_frames.values():
+                collect(page)
+
+            self.assertTrue(default_label_frames)
+            self.assertTrue(
+                any(
+                    str(frame.cget("text")).strip() == "工作簿分析"
+                    for frame in default_label_frames
+                )
+            )
+            for frame in default_label_frames:
+                background = str(frame.cget("bg"))
+                foreground = str(frame.cget("fg"))
+                self.assertNotEqual(
+                    background,
+                    "SystemButtonFace",
+                    msg=f"{frame.cget('text')} 仍在使用 Windows 浅色默认背景",
+                )
+                self.assertGreaterEqual(
+                    self._contrast_ratio(background, foreground),
+                    4.5,
+                    msg=f"{frame.cget('text')} 的标题对比度不足",
+                )
+
+            style = ttk.Style()
+            self.assertEqual(
+                style.lookup("TFrame", "background"),
+                app.palette["surface"],
+            )
+            for option in ("fieldbackground", "background"):
+                self.assertEqual(
+                    style.lookup("TCombobox", option, ("readonly",)),
+                    app.palette["entry_bg"],
+                )
+            self.assertEqual(
+                style.lookup("TCombobox", "foreground", ("readonly",)),
+                app.palette["entry_fg"],
+            )
+        finally:
+            app._on_closing()
+
     def test_filter_workflow_stage_survives_theme_rebuild(self):
         root = tk.Tk()
         root.withdraw()
@@ -863,9 +926,9 @@ class UiLayoutTests(unittest.TestCase):
             with patch("invoice_tool.ui.app.messagebox.showinfo") as showinfo:
                 app._show_release_notes()
             title, detail = showinfo.call_args.args
-            self.assertIn("v6.1.0", title)
-            self.assertIn("步骤导航", detail)
-            self.assertIn("按钮", detail)
+            self.assertIn("v6.1.1", title)
+            self.assertIn("黑夜主题", detail)
+            self.assertIn("对比度", detail)
         finally:
             app._on_closing()
 

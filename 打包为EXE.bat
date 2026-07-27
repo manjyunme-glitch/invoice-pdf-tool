@@ -3,9 +3,9 @@ setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
 
-set "APP_VERSION=6.1.0"
+set "APP_VERSION=6.1.1"
 set "SPEC_FILE=%~dp0invoice-pdf-tool-v6.spec"
-set "OUTPUT_NAME=invoice-pdf-tool-v6.1.0-windows-x64"
+set "OUTPUT_NAME=invoice-pdf-tool-v6.1.1-windows-x64"
 set "OUTPUT_FILE=%~dp0dist\%OUTPUT_NAME%.exe"
 set "HASH_FILE=%~dp0dist\%OUTPUT_NAME%.sha256.txt"
 set "PYTHONUTF8=1"
@@ -34,7 +34,7 @@ if errorlevel 1 goto :test_error
 
 echo.
 echo [3/4] Build one-file Windows executable...
-python -m PyInstaller --noconfirm --clean --distpath "%~dp0dist" --workpath "%~dp0build\v6.1.0" "%SPEC_FILE%"
+python -m PyInstaller --noconfirm --clean --distpath "%~dp0dist" --workpath "%~dp0build\v6.1.1" "%SPEC_FILE%"
 if errorlevel 1 goto :build_error
 
 if not exist "%OUTPUT_FILE%" goto :output_error

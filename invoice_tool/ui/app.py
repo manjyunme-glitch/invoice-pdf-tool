@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-发票处理工具箱 v6.1.0
+发票处理工具箱 v6.1.1
 
 当前版本聚焦于：
 - 发票整理
@@ -260,7 +260,7 @@ UI_THEME_PRESETS: Dict[str, Dict[str, Any]] = {
 # ==================== GUI 主应用 ====================
 
 class InvoiceToolApp:
-    """发票处理工具箱 v6.1.0"""
+    """发票处理工具箱 v6.1.1"""
 
     def __init__(
         self,
@@ -564,14 +564,18 @@ class InvoiceToolApp:
             "Spinbox": tk.Spinbox(self.root),
         }
         defaults: Dict[str, Dict[str, str]] = {}
-        for name, widget in probes.items():
+        for widget in probes.values():
             snapshot: Dict[str, str] = {}
             for option in ("bg", "fg", "activebackground", "activeforeground", "insertbackground"):
                 try:
                     snapshot[option] = str(widget.cget(option))
                 except tk.TclError:
                     continue
-            defaults[name] = snapshot
+            # Tk reports ``tk.LabelFrame`` as ``Labelframe`` on Windows.
+            # Store the runtime class name so theme traversal can recognise the
+            # real system-default background instead of leaving a light panel
+            # behind when the user switches to night mode.
+            defaults[widget.winfo_class()] = snapshot
             widget.destroy()
         return defaults
 

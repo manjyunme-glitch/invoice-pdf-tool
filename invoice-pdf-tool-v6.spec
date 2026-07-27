@@ -37,7 +37,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="invoice-pdf-tool-v6.1.0-windows-x64",
+    name="invoice-pdf-tool-v6.1.1-windows-x64",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
